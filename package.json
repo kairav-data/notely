@@ -1,0 +1,17 @@
+{
+  "name": "notely",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Notely — a minimalist local-first notes app with rich text, code blocks, and shape drawing. Stored in local MongoDB.",
+  "type": "module",
+  "scripts": {
+    "install:all": "npm install && npm --prefix server install && npm --prefix client install",
+    "mongo:start": "powershell -NoProfile -Command \"Start-Service MongoDB\"",
+    "dev": "concurrently -n server,client -c cyan,magenta \"npm --prefix server run dev\" \"npm --prefix client run dev\"",
+    "build": "npm --prefix client run build",
+    "start": "npm --prefix server run start"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.0"
+  }
+}

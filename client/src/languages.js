@@ -1,0 +1,23 @@
+// Shared language list for code blocks (value → display label).
+export const LANGUAGES = [
+  { value: "plaintext", label: "Plain text" },
+  { value: "python", label: "Python" },
+  { value: "sql", label: "SQL" },
+  { value: "java", label: "Java" },
+  { value: "javascript", label: "JavaScript" },
+  { value: "typescript", label: "TypeScript" },
+  { value: "cpp", label: "C++" },
+  { value: "c", label: "C" },
+  { value: "csharp", label: "C#" },
+  { value: "go", label: "Go" },
+  { value: "rust", label: "Rust" },
+  { value: "bash", label: "Bash / Shell" },
+  { value: "json", label: "JSON" },
+  { value: "xml", label: "HTML / XML" },
+  { value: "css", label: "CSS" },
+  { value: "php", label: "PHP" },
+  { value: "ruby", label: "Ruby" },
+  { value: "kotlin", label: "Kotlin" },
+  { value: "swift", label: "Swift" },
+  { value: "yaml", label: "YAML" },
+];
