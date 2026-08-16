@@ -66,6 +66,7 @@ button {
   border: none;
   background: none;
   color: inherit;
+  touch-action: manipulation;
 }
 
 ::selection { background: var(--color-accent-soft); color: var(--color-foreground); }
@@ -1079,6 +1080,8 @@ button {
   color: var(--color-muted-fg); border-bottom: 1px solid transparent;
   border-radius: var(--radius) var(--radius) 0 0;
   opacity: 0; transition: opacity 0.12s var(--ease);
+  touch-action: none;
+  user-select: none;
 }
 .cblock:hover .cblock__handle,
 .cblock.is-active .cblock__handle { opacity: 1; background: var(--color-muted); border-bottom-color: var(--color-border); }
@@ -1088,6 +1091,7 @@ button {
 .cblock__resize {
   position: absolute; right: -3px; bottom: 10px; width: 8px; height: 32px;
   border-radius: 4px; cursor: ew-resize; background: transparent;
+  touch-action: none;
 }
 .cblock.is-active .cblock__resize { background: var(--color-accent); opacity: 0.6; }
 
@@ -1177,9 +1181,79 @@ button {
 .empty p { margin: 0; max-width: 380px; font-size: 14px; line-height: 1.5; }
 
 @media (max-width: 720px) {
-  :root { --sidebar-w: 84vw; }
-  .sidebar { position: absolute; z-index: 50; height: 100%; box-shadow: var(--shadow-md); }
+  :root { --sidebar-w: min(86vw, 340px); }
+  .sidebar { position: absolute; z-index: 50; height: 100%; box-shadow: 8px 0 32px rgba(0, 0, 0, .18); }
+  .topbar { height: 56px; gap: 6px; padding: 0 9px; }
+  .title-input { min-width: 0; font-size: 15px; }
+  .view-mode-switcher { flex-shrink: 0; gap: 0; padding: 2px; }
+  .view-mode-btn { width: 30px; height: 30px; justify-content: center; padding: 0; }
+  .view-mode-btn span, .save-state { display: none; }
+  .split-view-container { height: calc(100vh - 56px); flex-direction: column; }
+  .split-pane { min-height: 50%; }
+  .split-pane-left { border-right: 0; border-bottom: 1px solid var(--color-border); }
+
+  /* Whiteboard controls are kept reachable without covering the canvas. */
+  .wb-top-left-menu { top: 10px; left: 10px; }
+  .wb-top-right-actions { top: 10px; right: 10px; }
+  .wb-menu-btn { width: 34px; height: 34px; }
+  .wb-share-btn { width: 34px; height: 34px; padding: 0; justify-content: center; }
+  .wb-share-btn span { display: none; }
+  .wb-topbar {
+    top: 9px;
+    left: 53px;
+    right: 53px;
+    width: auto;
+    max-width: none;
+    transform: none;
+    justify-content: flex-start;
+    overflow-x: auto;
+    scrollbar-width: none;
+    padding: 3px 4px;
+  }
+  .wb-topbar::-webkit-scrollbar { display: none; }
+  .wb-topbar .wb-toolbar-group { flex-shrink: 0; }
+  .wb-tool-btn { width: 32px; height: 34px; }
   .wb-style-panel { display: none; }
-  .wb-container.has-style-panel .wb-bottom-left-dock { left: 16px; }
+  .wb-bottom-left-dock { left: 12px; right: 12px; bottom: 12px; justify-content: space-between; gap: 5px; }
+  .wb-container.has-style-panel .wb-bottom-left-dock { left: 12px; }
+  .wb-zoom-controls, .wb-secondary-controls { padding: 2px 3px; }
+  .wb-control-btn { width: 27px; height: 27px; }
+  .wb-minimap { display: none; }
+
+  .empty { padding: 28px 20px; }
+  .empty h2 { font-size: 1.65rem; }
+  .editor-scroll { overflow: auto; overscroll-behavior: contain; }
+  .cblock__handle {
+    height: 30px;
+    padding: 0 8px;
+    opacity: 1;
+    background: var(--color-muted);
+    border-bottom-color: var(--color-border);
+    color: var(--color-accent);
+  }
+  .cblock__resize { right: -8px; bottom: 12px; width: 18px; height: 42px; }
+  .tblock__editor,
+  .tblock__editor .ProseMirror {
+    touch-action: manipulation;
+    -webkit-user-select: text;
+    user-select: text;
+  }
+  .tblock__editor .ProseMirror {
+    min-height: 88px;
+    font-size: 16px;
+    line-height: 1.65;
+  }
+  .canvas { min-width: 720px; }
   .note-toolbar { max-width: calc(100% - 20px); top: 10px; margin-top: 10px; }
+}
+
+@media (max-width: 390px) {
+  .topbar { gap: 4px; padding: 0 6px; }
+  .view-mode-btn { width: 28px; }
+  .wb-bottom-left-dock { left: 8px; right: 8px; }
+  .wb-container.has-style-panel .wb-bottom-left-dock { left: 8px; }
+  .wb-zoom-sep { margin: 0 2px; }
+  .wb-control-btn { width: 25px; height: 25px; }
+  .wb-zoom-display { width: 39px; }
+  .auth-card { gap: 14px; }
 }

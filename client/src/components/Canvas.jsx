@@ -90,7 +90,7 @@ export default function Canvas({ note, onBlocksChange, onDrawingChange }) {
     setSelId(null);
   };
 
-  const onCanvasMouseDown = (e) => {
+  const onCanvasPointerDown = (e) => {
     if (drawMode) return;
     if (e.target === e.currentTarget) {
       setActiveId(null);
@@ -136,7 +136,7 @@ export default function Canvas({ note, onBlocksChange, onDrawingChange }) {
       <div
         className={`canvas ${drawMode ? "is-drawing" : ""}`}
         style={{ width: size.w, height: size.h }}
-        onMouseDown={onCanvasMouseDown}
+        onPointerDown={onCanvasPointerDown}
       >
         {blocks.map((b) => (
           <CanvasBlock

@@ -9,7 +9,7 @@ import Highlight from "@tiptap/extension-highlight";
 import TaskList from "@tiptap/extension-task-list";
 import TaskItem from "@tiptap/extension-task-item";
 
-export default function TextBlock({ content, autoFocus, onChange, onFocusEditor, onBlurEmpty }) {
+export default function TextBlock({ content, autoFocus, onChange, onFocusEditor, onBlurEmpty, onSelect }) {
   const editor = useEditor({
     extensions: [
       StarterKit.configure({ codeBlock: false, heading: { levels: [1, 2, 3] } }),
@@ -24,7 +24,10 @@ export default function TextBlock({ content, autoFocus, onChange, onFocusEditor,
     content: content || { type: "doc", content: [{ type: "paragraph" }] },
     autofocus: autoFocus ? "end" : false,
     onUpdate: ({ editor }) => onChange(editor.getJSON()),
-    onFocus: ({ editor }) => onFocusEditor(editor),
+    onFocus: ({ editor }) => {
+      onSelect?.();
+      onFocusEditor(editor);
+    },
     onBlur: ({ editor }) => onBlurEmpty(editor.isEmpty),
   });
 

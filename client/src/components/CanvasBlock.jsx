@@ -15,6 +15,7 @@ export default function CanvasBlock({
 
   const onHandleDown = (e) => {
     e.preventDefault();
+    e.stopPropagation();
     onSelect();
     e.currentTarget.setPointerCapture(e.pointerId);
     drag.current = { px: e.clientX, py: e.clientY, x: block.x, y: block.y };
@@ -26,7 +27,10 @@ export default function CanvasBlock({
     onPatch({ x: Math.max(0, nx), y: Math.max(0, ny) });
   };
   const onHandleUp = (e) => {
-    if (drag.current) { e.currentTarget.releasePointerCapture?.(e.pointerId); drag.current = null; }
+    if (drag.current) {
+      try { e.currentTarget.releasePointerCapture?.(e.pointerId); } catch { /* pointer was already cancelled */ }
+      drag.current = null;
+    }
   };
 
   const onResizeDown = (e) => {
@@ -41,14 +45,24 @@ export default function CanvasBlock({
     onPatch({ width: Math.max(200, resize.current.w + (e.clientX - resize.current.px)) });
   };
   const onResizeUp = (e) => {
-    if (resize.current) { e.currentTarget.releasePointerCapture?.(e.pointerId); resize.current = null; }
+    if (resize.current) {
+      try { e.currentTarget.releasePointerCapture?.(e.pointerId); } catch { /* pointer was already cancelled */ }
+      resize.current = null;
+    }
   };
 
   return (
     <div
       className={`cblock ${active ? "is-active" : ""} cblock--${block.kind}`}
       style={{ left: block.x, top: block.y, width: block.width, zIndex: block.z || 1 }}
-      onMouseDown={(e) => { e.stopPropagation(); onSelect(); }}
+      onPointerDown={(e) => {
+        // Let a tap inside an editor reach the native contenteditable element
+        // first. Selecting the block before that happens can prevent the
+        // mobile keyboard from opening reliably.
+        if (e.target.closest?.(".tblock__editor, .codebox")) return;
+        e.stopPropagation();
+        onSelect();
+      }}
     >
       <div
         className="cblock__handle"
@@ -56,6 +70,7 @@ export default function CanvasBlock({
         onPointerDown={onHandleDown}
         onPointerMove={onHandleMove}
         onPointerUp={onHandleUp}
+        onPointerCancel={onHandleUp}
       >
         <GripVertical size={11} />
       </div>
@@ -73,6 +88,7 @@ export default function CanvasBlock({
             content={block.content}
             autoFocus={block.autoFocus}
             onChange={(content) => onPatch({ content })}
+            onSelect={onSelect}
             onFocusEditor={onFocusEditor}
             onBlurEmpty={onBlurEmpty}
           />
@@ -85,6 +101,7 @@ export default function CanvasBlock({
         onPointerDown={onResizeDown}
         onPointerMove={onResizeMove}
         onPointerUp={onResizeUp}
+        onPointerCancel={onResizeUp}
       />
     </div>
   );
