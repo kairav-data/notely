@@ -1,5 +1,4 @@
-import { useRef, useState } from "react";
-import { Check, Copy } from "lucide-react";
+import { useRef } from "react";
 import { LANGUAGES } from "../languages.js";
 import { highlightCode } from "../hljs.js";
 
@@ -11,22 +10,11 @@ import { highlightCode } from "../hljs.js";
  */
 export default function CodeBox({ code, language, onChange, onFocus }) {
   const preRef = useRef(null);
-  const [copied, setCopied] = useState(false);
 
   const syncScroll = (e) => {
     if (preRef.current) {
       preRef.current.scrollTop = e.target.scrollTop;
       preRef.current.scrollLeft = e.target.scrollLeft;
-    }
-  };
-
-  const copy = async () => {
-    try {
-      await navigator.clipboard.writeText(code || "");
-      setCopied(true);
-      setTimeout(() => setCopied(false), 1500);
-    } catch {
-      /* ignore */
     }
   };
 
@@ -57,14 +45,10 @@ export default function CodeBox({ code, language, onChange, onFocus }) {
             <option key={l.value} value={l.value}>{l.label}</option>
           ))}
         </select>
-        <button className="codebox__copy" type="button" onClick={copy}>
-          {copied ? <Check size={14} /> : <Copy size={14} />}
-          {copied ? "Copied" : "Copy"}
-        </button>
       </div>
       <div className="codebox__area">
         <pre ref={preRef} aria-hidden="true" className="codebox__pre">
-          <code className="hljs" dangerouslySetInnerHTML={{ __html: html }} />
+          <code className={`hljs language-${language}`} dangerouslySetInnerHTML={{ __html: html }} />
         </pre>
         <textarea
           className="codebox__ta"

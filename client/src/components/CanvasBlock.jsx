@@ -1,5 +1,5 @@
 import { useRef } from "react";
-import { GripVertical, Trash2 } from "lucide-react";
+import { GripVertical } from "lucide-react";
 import TextBlock from "./TextBlock.jsx";
 import CodeBox from "./CodeBox.jsx";
 
@@ -57,17 +57,7 @@ export default function CanvasBlock({
         onPointerMove={onHandleMove}
         onPointerUp={onHandleUp}
       >
-        <GripVertical size={14} />
-        <span className="cblock__kind">{block.kind === "code" ? "Code" : "Note"}</span>
-        <button
-          className="cblock__del"
-          title="Delete block"
-          onPointerDown={(e) => e.stopPropagation()}
-          onMouseDown={(e) => e.stopPropagation()}
-          onClick={(e) => { e.stopPropagation(); onDelete(); }}
-        >
-          <Trash2 size={14} />
-        </button>
+        <GripVertical size={11} />
       </div>
 
       <div className="cblock__body">

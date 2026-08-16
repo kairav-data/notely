@@ -10,7 +10,7 @@ function Btn({ onClick, active, disabled, title, children }) {
   return (
     <button
       type="button"
-      className={`tb-btn ${active ? "is-active" : ""}`}
+      className={`tb-btn note-tool-btn ${active ? "is-active" : ""}`}
       onMouseDown={(e) => e.preventDefault()}
       onClick={onClick}
       disabled={disabled}
@@ -41,17 +41,17 @@ export default function Toolbar({ editor, onAddText, onAddCode, onDraw }) {
   };
 
   return (
-    <div className="toolbar" role="toolbar" aria-label="Formatting">
+    <div className="toolbar note-toolbar" role="toolbar" aria-label="Note tools">
       {/* Add blocks + draw — always available */}
       <div className="tb-group">
         <Btn title="Add text (or click the canvas)" onClick={onAddText}>
-          <Type size={17} /> <span style={{ fontSize: 13 }}>Text</span>
+          <Type size={17} />
         </Btn>
         <Btn title="Add code block" onClick={onAddCode}>
-          <Code2 size={17} /> <span style={{ fontSize: 13 }}>Code</span>
+          <Code2 size={17} />
         </Btn>
         <Btn title="Draw over the canvas" onClick={onDraw}>
-          <PenLine size={17} /> <span style={{ fontSize: 13 }}>Draw</span>
+          <PenLine size={17} />
         </Btn>
       </div>
       <Sep />
