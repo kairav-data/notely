@@ -3,11 +3,13 @@ import cors from "cors";
 import { MongoClient, ObjectId } from "mongodb";
 import { createHmac, randomBytes, scrypt as scryptCallback, timingSafeEqual } from "node:crypto";
 import { existsSync, readFileSync } from "node:fs";
-import { resolve } from "node:path";
+import { dirname, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
 
 // Loads the local, git-ignored server/.env file without adding another dependency.
-const envFile = resolve(process.cwd(), ".env");
+const serverDir = dirname(fileURLToPath(import.meta.url));
+const envFile = resolve(serverDir, ".env");
 if (existsSync(envFile)) {
   for (const line of readFileSync(envFile, "utf8").split(/\r?\n/)) {
     const match = line.match(/^\s*([A-Z0-9_]+)\s*=\s*(.*?)\s*$/);
@@ -15,6 +17,7 @@ if (existsSync(envFile)) {
   }
 }
 
+const clientDist = resolve(serverDir, "../client/dist");
 const PORT = process.env.PORT || 4000;
 const MONGO_URI = process.env.MONGO_URI || "mongodb://127.0.0.1:27017";
 const DB_NAME = process.env.DB_NAME || "notely";
@@ -55,7 +58,13 @@ const emptyDoc = () => ({
   content: [{ type: "paragraph" }],
 });
 
-const publicUser = (user) => ({ id: user._id.toString(), email: user.email, createdAt: user.createdAt });
+const publicUser = (user) => ({
+  id: user._id.toString(),
+  email: user.email,
+  firstName: user.firstName,
+  lastName: user.lastName,
+  createdAt: user.createdAt,
+});
 
 const hashPassword = async (password) => {
   const salt = randomBytes(16).toString("hex");
@@ -108,12 +117,33 @@ const credentials = (body) => {
   return { email, password };
 };
 
+const profileDetails = (body) => {
+  const text = (value, max) => typeof value === "string" ? value.trim().slice(0, max) : "";
+  const firstName = text(body?.firstName, 80);
+  const lastName = text(body?.lastName, 80);
+  const phone = text(body?.phone, 30);
+  const company = text(body?.company, 120);
+  const jobTitle = text(body?.jobTitle, 120);
+  if (firstName.length < 2) return { error: "Enter your first name." };
+  if (lastName.length < 2) return { error: "Enter your last name." };
+  if (!/^\+?[0-9()\-\s]{7,30}$/.test(phone)) return { error: "Enter a valid phone number." };
+  return { firstName, lastName, phone, company, jobTitle };
+};
+
 app.post("/api/auth/register", async (req, res) => {
   const input = credentials(req.body);
   if (input.error) return res.status(400).json({ error: input.error });
+  const profile = profileDetails(req.body);
+  if (profile.error) return res.status(400).json({ error: profile.error });
   try {
     const now = new Date();
-    const user = { email: input.email, passwordHash: await hashPassword(input.password), createdAt: now };
+    const user = {
+      email: input.email,
+      passwordHash: await hashPassword(input.password),
+      ...profile,
+      createdAt: now,
+      updatedAt: now,
+    };
     const { insertedId } = await users.insertOne(user);
     const created = { ...user, _id: insertedId };
     res.status(201).json({ user: publicUser(created), token: signToken(created) });
@@ -197,12 +227,19 @@ app.delete("/api/notes/:id", requireAuth, async (req, res) => {
 
 app.get("/api/health", (_req, res) => res.json({ ok: !!notes }));
 
+// On Render, Express serves the production Vite build and falls back to its
+// entry point for client-side routes. Vite continues serving the client locally.
+if (existsSync(clientDist)) {
+  app.use(express.static(clientDist));
+  app.get("*", (_req, res) => res.sendFile(resolve(clientDist, "index.html")));
+}
+
 connect()
   .then(() => {
     app.listen(PORT, () => console.log(`✓ Notely API on http://localhost:${PORT}`));
   })
   .catch((err) => {
     console.error("✗ Could not connect to MongoDB.\n", err.message);
-    console.error("  Start it with:  Start-Service MongoDB   (or run mongod)");
+    console.error("  Check MONGO_URI, database access, and network/DNS settings in server/.env.");
     process.exit(1);
   });

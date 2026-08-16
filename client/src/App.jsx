@@ -1,11 +1,14 @@
 import { useEffect, useRef, useState, useCallback } from "react";
-import { PanelLeftOpen, FileText, Palette, Columns2 } from "lucide-react";
+import { PanelLeftOpen, FileText, Palette, Columns2, LogOut } from "lucide-react";
 import { api } from "./api.js";
+import AuthScreen from "./components/AuthScreen.jsx";
 import Sidebar from "./components/Sidebar.jsx";
 import Canvas from "./components/Canvas.jsx";
 import WhiteboardCanvas from "./whiteboard/WhiteboardCanvas.jsx";
 
 export default function App() {
+  const [user, setUser] = useState(null);
+  const [checkingSession, setCheckingSession] = useState(true);
   const [notes, setNotes] = useState([]);
   const [activeId, setActiveId] = useState(null);
   const [activeNote, setActiveNote] = useState(null);
@@ -27,8 +30,17 @@ export default function App() {
     localStorage.setItem("notely-theme", theme);
   }, [theme]);
 
+  useEffect(() => {
+    if (!localStorage.getItem("notely-token")) {
+      setCheckingSession(false);
+      return;
+    }
+    api.me().then(setUser).catch(() => localStorage.removeItem("notely-token")).finally(() => setCheckingSession(false));
+  }, []);
+
   // Initial load.
   useEffect(() => {
+    if (!user) return;
     api.list()
       .then(async (list) => {
         setNotes(list);
@@ -36,7 +48,15 @@ export default function App() {
       })
       .catch((e) => setError(e.message));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [user]);
+
+  const logout = () => {
+    localStorage.removeItem("notely-token");
+    setNotes([]);
+    setActiveId(null);
+    setActiveNote(null);
+    setUser(null);
+  };
 
   const openNote = async (id) => {
     await flush(); // persist any pending edits before switching
@@ -73,6 +93,11 @@ export default function App() {
     if (saveTimer.current) clearTimeout(saveTimer.current);
     saveTimer.current = setTimeout(() => flush(), 700);
   }, [flush]);
+
+  // Keep this authentication gate after every hook in this component. Returning
+  // before useCallback would make the hook order change when a user signs in.
+  if (checkingSession) return null;
+  if (!user) return <AuthScreen onAuthenticated={setUser} />;
 
   const onTitle = (title) => {
     setActiveNote((n) => ({ ...n, title }));
@@ -191,6 +216,7 @@ export default function App() {
               </div>
 
               <span className="save-state">{saveLabel}</span>
+              <button className="icon-btn" title="Sign out" onClick={logout}><LogOut size={18} /></button>
             </div>
 
             {/* View Containers */}

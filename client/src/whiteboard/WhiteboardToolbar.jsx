@@ -40,18 +40,18 @@ export default function WhiteboardToolbar({
   const [showMenu, setShowMenu] = useState(false);
 
   const toolButtons = [
-    { id: TOOLS.HAND, icon: Hand, label: "Hand (Pan)", num: "0" },
-    { id: TOOLS.SELECTION, icon: MousePointer2, label: "Selection", num: "1" },
-    { id: TOOLS.RECTANGLE, icon: Square, label: "Rectangle", num: "2" },
-    { id: TOOLS.DIAMOND, icon: Diamond, label: "Diamond", num: "3" },
-    { id: TOOLS.ELLIPSE, icon: Circle, label: "Ellipse", num: "4" },
-    { id: TOOLS.ARROW, icon: ArrowRight, label: "Arrow", num: "5" },
-    { id: TOOLS.LINE, icon: Minus, label: "Line", num: "6" },
-    { id: TOOLS.PEN, icon: Pencil, label: "Draw", num: "7" },
-    { id: TOOLS.TEXT, icon: Type, label: "Text", num: "8" },
-    { id: TOOLS.IMAGE, icon: ImageIcon, label: "Insert Image", num: "9" },
-    { id: TOOLS.ERASER, icon: Eraser, label: "Eraser", num: "0" },
-    { id: TOOLS.LASER, icon: Sparkles, label: "Laser Pointer", num: "K" },
+    { id: TOOLS.HAND, icon: Hand, label: "Hand (Pan)" },
+    { id: TOOLS.SELECTION, icon: MousePointer2, label: "Selection" },
+    { id: TOOLS.RECTANGLE, icon: Square, label: "Rectangle" },
+    { id: TOOLS.DIAMOND, icon: Diamond, label: "Diamond" },
+    { id: TOOLS.ELLIPSE, icon: Circle, label: "Ellipse" },
+    { id: TOOLS.ARROW, icon: ArrowRight, label: "Arrow" },
+    { id: TOOLS.LINE, icon: Minus, label: "Line" },
+    { id: TOOLS.PEN, icon: Pencil, label: "Draw" },
+    { id: TOOLS.TEXT, icon: Type, label: "Text" },
+    { id: TOOLS.IMAGE, icon: ImageIcon, label: "Insert Image" },
+    { id: TOOLS.ERASER, icon: Eraser, label: "Eraser" },
+    { id: TOOLS.LASER, icon: Sparkles, label: "Laser Pointer" },
   ];
 
   const handleToolClick = (t) => {
@@ -151,12 +151,11 @@ export default function WhiteboardToolbar({
                 type="button"
                 className={`wb-tool-btn ${isActive ? "is-active" : ""}`}
                 onClick={() => handleToolClick(t.id)}
-                title={`${t.label} (${t.num})`}
+                title={t.label}
                 aria-label={t.label}
                 aria-pressed={isActive}
               >
                 <Icon size={17} />
-                <span className="wb-tool-sub">{t.num}</span>
               </button>
             );
           })}

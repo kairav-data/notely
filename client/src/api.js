@@ -1,9 +1,14 @@
 const BASE = "/api";
 
 async function req(path, opts = {}) {
+  const token = localStorage.getItem("notely-token");
   const res = await fetch(BASE + path, {
-    headers: { "Content-Type": "application/json" },
     ...opts,
+    headers: {
+      "Content-Type": "application/json",
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      ...opts.headers,
+    },
   });
   if (!res.ok) {
     const msg = await res.json().catch(() => ({}));
@@ -13,6 +18,9 @@ async function req(path, opts = {}) {
 }
 
 export const api = {
+  register: (details) => req("/auth/register", { method: "POST", body: JSON.stringify(details) }),
+  login: (email, password) => req("/auth/login", { method: "POST", body: JSON.stringify({ email, password }) }),
+  me: () => req("/auth/me"),
   list: () => req("/notes"),
   get: (id) => req(`/notes/${id}`),
   create: (data) => req("/notes", { method: "POST", body: JSON.stringify(data) }),

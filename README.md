@@ -1,8 +1,8 @@
 # Notely
 
-A minimalist, local-first note-taking web app: rich-text writing, syntax-highlighted
+A minimalist note-taking web app: rich-text writing, syntax-highlighted
 code blocks in any language, and an editable shapes/drawing canvas — everything stored
-in a local **MongoDB**.
+in **MongoDB**. Accounts use an email address and securely hashed password; notes are private to each account.
 
 Design language from the `ui-ux-pro-max` skill: *Exaggerated Minimalism* — warm ink on
 cream, amber accent, Inter. Light & dark mode. The full design system lives in
@@ -42,7 +42,7 @@ The Vite dev server (`:5173`) proxies `/api` to the Express server (`:4000`).
 ## Prerequisites
 
 - Node.js 18+ (tested on Node 24)
-- A running MongoDB on `localhost:27017`
+- A MongoDB deployment (MongoDB Atlas is configured in `server/.env`)
 
 > **Note about MongoDB on this machine:** the pre-existing `MongoDB` Windows service points
 > at a **0-byte / broken `mongod.exe`**, so it can't start. This project was set up to use
@@ -73,10 +73,17 @@ npm run dev           # starts API (:4000) and client (:5173) together
 
 Then open **http://localhost:5173**.
 
+## Deploy to Render
+
+This repository includes a `render.yaml` Blueprint that deploys the client and
+API together as one Render web service. Before creating the service, add your
+MongoDB Atlas connection to the Render environment as `MONGO_URI` (do not commit
+it to Git). Render provides `PORT`; the Blueprint generates `AUTH_SECRET`.
+
 ## Configuration
 
-Server env vars (optional): `PORT` (4000), `MONGO_URI` (`mongodb://127.0.0.1:27017`),
-`DB_NAME` (`notely`).
+Server env vars: `PORT` (4000), `MONGO_URI`, `DB_NAME` (`notely`), and `AUTH_SECRET`.
+Keep these values in the git-ignored `server/.env` file. Passwords are salted and hashed before they are written to MongoDB.
 
 ## API
 

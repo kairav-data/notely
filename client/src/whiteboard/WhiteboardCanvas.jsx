@@ -133,6 +133,10 @@ export default function WhiteboardCanvas({
   const selectedElements = elements.filter((el) => selectedIds.includes(el.id));
   const selectionBounds = getCombinedBounds(selectedElements);
   const transformHandles = selectionBounds ? getTransformHandles(selectionBounds, zoom) : [];
+  const showStylePanel = tool === TOOLS.SELECTION
+    && action !== "drawing"
+    && !draftElement
+    && selectedIds.length > 0;
 
   // Style change handler
   const handleStyleChange = useCallback((patch) => {
@@ -595,7 +599,10 @@ export default function WhiteboardCanvas({
 
       if (isValid) {
         updateElements([...elements, draftElement]);
-        setSelectedIds([]); // Do not auto-select after drawing
+        // Keep the new shape selected so the left-side properties toolbox opens
+        // immediately. This lets users refine colour, fill, stroke and more
+        // without having to switch back and click the shape again.
+        setSelectedIds([draftElement.id]);
       }
       setDraftElement(null);
 
@@ -763,7 +770,7 @@ export default function WhiteboardCanvas({
   return (
     <div
       ref={containerRef}
-      className={`wb-container ${tool === TOOLS.HAND || action === "panning" ? "is-panning" : ""}`}
+      className={`wb-container ${tool === TOOLS.HAND || action === "panning" ? "is-panning" : ""} ${showStylePanel ? "has-style-panel" : ""}`}
       onPointerDown={handlePointerDown}
       onPointerMove={handlePointerMove}
       onPointerUp={handlePointerUp}
@@ -783,8 +790,8 @@ export default function WhiteboardCanvas({
         onToggleTheme={onToggleTheme}
       />
 
-      {/* Left Properties Panel (ONLY appears when a shape is clicked/selected with the selection tool!) */}
-      {tool === TOOLS.SELECTION && action !== "drawing" && !draftElement && selectedIds.length > 0 && (
+      {/* Left properties toolbox appears for a clicked or newly drawn shape. */}
+      {showStylePanel && (
         <StylePanel
           selectedElements={selectedElements}
           currentStyle={currentStyle}
