@@ -1,9 +1,8 @@
 import { useEffect, useRef, useState, useCallback } from "react";
-import { PanelLeftOpen, FileText, Palette, Columns2, LogOut } from "lucide-react";
+import { PanelLeftOpen, LogOut } from "lucide-react";
 import { api } from "./api.js";
 import AuthScreen from "./components/AuthScreen.jsx";
 import Sidebar from "./components/Sidebar.jsx";
-import Canvas from "./components/Canvas.jsx";
 import WhiteboardCanvas from "./whiteboard/WhiteboardCanvas.jsx";
 
 export default function App() {
@@ -14,7 +13,6 @@ export default function App() {
   const [activeNote, setActiveNote] = useState(null);
   const [query, setQuery] = useState("");
   const [collapsed, setCollapsed] = useState(false);
-  const [viewMode, setViewMode] = useState("note"); // note | whiteboard | split
   const [saveState, setSaveState] = useState("idle"); // idle | saving | saved
   const [error, setError] = useState(null);
   const [theme, setTheme] = useState(
@@ -44,7 +42,16 @@ export default function App() {
     api.list()
       .then(async (list) => {
         setNotes(list);
-        if (list.length) await openNote(list[0]._id);
+        if (list.length) {
+          await openNote(list[0]._id);
+          return;
+        }
+
+        // A whiteboard-only workspace still needs one persisted canvas.
+        const note = await api.create({ title: "Whiteboard" });
+        setNotes([{ _id: note._id, title: note.title, updatedAt: note.updatedAt }]);
+        setActiveId(note._id);
+        setActiveNote(note);
       })
       .catch((e) => setError(e.message));
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -100,12 +107,8 @@ export default function App() {
   if (!user) return <AuthScreen onAuthenticated={setUser} />;
 
   const onTitle = (title) => {
-    setActiveNote((n) => ({ ...n, title }));
+    setActiveNote((note) => ({ ...note, title }));
     scheduleSave({ title });
-  };
-
-  const onBlocksChange = (blocks) => {
-    scheduleSave({ blocks });
   };
 
   const onDrawingChange = (drawing) => {
@@ -127,15 +130,15 @@ export default function App() {
   };
 
   const deleteNote = async (id) => {
-    if (!window.confirm("Delete this note? This cannot be undone.")) return;
+    if (!window.confirm("Delete this page? This cannot be undone.")) return;
     try {
       await api.remove(id);
-      const rest = notes.filter((n) => n._id !== id);
+      const rest = notes.filter((note) => note._id !== id);
       setNotes(rest);
       if (id === activeId) {
         pending.current = null;
         if (rest.length) await openNote(rest[0]._id);
-        else { setActiveId(null); setActiveNote(null); }
+        else await createNote();
       }
     } catch (e) {
       setError(e.message);
@@ -157,16 +160,15 @@ export default function App() {
           onDelete={deleteNote}
           onCollapse={() => setCollapsed(true)}
           theme={theme}
-          onToggleTheme={() => setTheme((t) => (t === "dark" ? "light" : "dark"))}
+          onToggleTheme={() => setTheme((value) => (value === "dark" ? "light" : "dark"))}
         />
       )}
-
       <main className="main">
         {activeNote ? (
           <>
             <div className="topbar">
               {collapsed && (
-                <button className="icon-btn" title="Show sidebar" onClick={() => setCollapsed(false)}>
+                <button className="icon-btn" title="Show pages" onClick={() => setCollapsed(false)}>
                   <PanelLeftOpen size={19} />
                 </button>
               )}
@@ -174,110 +176,24 @@ export default function App() {
                 className="title-input"
                 value={activeNote.title || ""}
                 onChange={(e) => onTitle(e.target.value)}
-                placeholder="Untitled"
-                aria-label="Note title"
+                placeholder="Untitled whiteboard"
+                aria-label="Whiteboard title"
               />
-
-              {/* View Mode Switcher */}
-              <div className="view-mode-switcher" role="tablist" aria-label="View mode">
-                <button
-                  type="button"
-                  role="tab"
-                  aria-selected={viewMode === "note"}
-                  className={`view-mode-btn ${viewMode === "note" ? "is-active" : ""}`}
-                  onClick={() => setViewMode("note")}
-                  title="Document Notes View"
-                >
-                  <FileText size={15} />
-                  <span>Notes</span>
-                </button>
-                <button
-                  type="button"
-                  role="tab"
-                  aria-selected={viewMode === "whiteboard"}
-                  className={`view-mode-btn ${viewMode === "whiteboard" ? "is-active" : ""}`}
-                  onClick={() => setViewMode("whiteboard")}
-                  title="Excalidraw Whiteboard View"
-                >
-                  <Palette size={15} />
-                  <span>Whiteboard</span>
-                </button>
-                <button
-                  type="button"
-                  role="tab"
-                  aria-selected={viewMode === "split"}
-                  className={`view-mode-btn ${viewMode === "split" ? "is-active" : ""}`}
-                  onClick={() => setViewMode("split")}
-                  title="Split View (Notes + Whiteboard)"
-                >
-                  <Columns2 size={15} />
-                  <span>Split</span>
-                </button>
-              </div>
-
               <span className="save-state">{saveLabel}</span>
               <button className="icon-btn" title="Sign out" onClick={logout}><LogOut size={18} /></button>
             </div>
-
-            {/* View Containers */}
-            {viewMode === "note" && (
-              <Canvas
-                key={`note-${activeNote._id}`}
-                note={activeNote}
-                onBlocksChange={onBlocksChange}
-                onDrawingChange={onDrawingChange}
-              />
-            )}
-
-            {viewMode === "whiteboard" && (
-              <WhiteboardCanvas
-                key={`wb-${activeNote._id}`}
-                initialElements={activeNote.drawing || []}
-                onChange={onDrawingChange}
-                noteTitle={activeNote.title || "Untitled"}
-                theme={theme}
-                onToggleTheme={() => setTheme((t) => (t === "dark" ? "light" : "dark"))}
-              />
-            )}
-
-            {viewMode === "split" && (
-              <div className="split-view-container">
-                <div className="split-pane split-pane-left">
-                  <Canvas
-                    key={`split-note-${activeNote._id}`}
-                    note={activeNote}
-                    onBlocksChange={onBlocksChange}
-                    onDrawingChange={onDrawingChange}
-                  />
-                </div>
-                <div className="split-pane split-pane-right">
-                  <WhiteboardCanvas
-                    key={`split-wb-${activeNote._id}`}
-                    initialElements={activeNote.drawing || []}
-                    onChange={onDrawingChange}
-                    noteTitle={activeNote.title || "Untitled"}
-                    theme={theme}
-                    onToggleTheme={() => setTheme((t) => (t === "dark" ? "light" : "dark"))}
-                  />
-                </div>
-              </div>
-            )}
+            <WhiteboardCanvas
+              key={`wb-${activeNote._id}`}
+              initialElements={activeNote.drawing || []}
+              onChange={onDrawingChange}
+              noteTitle="Whiteboard"
+              theme={theme}
+              onToggleTheme={() => setTheme((t) => (t === "dark" ? "light" : "dark"))}
+            />
           </>
         ) : (
           <div className="empty">
-            {collapsed && (
-              <button className="icon-btn" onClick={() => setCollapsed(false)}>
-                <PanelLeftOpen size={19} />
-              </button>
-            )}
-            <h2>A quiet place to think.</h2>
-            <p>
-              Rich text, syntax-highlighted code in any language, and an infinite
-              Excalidraw whiteboard for diagrams & sketching — all saved locally.
-            </p>
-            <button className="new-note" style={{ margin: 0 }} onClick={createNote}>
-              Create your first note
-            </button>
+            <h2>Preparing your whiteboard…</h2>
           </div>
         )}
 

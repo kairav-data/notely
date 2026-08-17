@@ -1,4 +1,5 @@
 import rough from "roughjs/bin/rough";
+import { getElbowArrowPoints } from "./geometry.js";
 
 const generator = rough.generator();
 
@@ -63,14 +64,21 @@ function getRoughOptions(el) {
     el.strokeStyle === "dashed" ? [8, 8] :
     el.strokeStyle === "dotted" ? [3, 4] : undefined;
 
-  const roughness = el.roughness ?? 1.5;
+  // Keep the hand-drawn character subtle. Large roughness and bowing values
+  // make RoughJS' second pass visibly split away from the first at corners.
+  // Older boards stored 1.5 for the former Artist setting, so normalize that
+  // value too when they are reopened.
+  const savedRoughness = el.roughness ?? 0.95;
+  const roughness = savedRoughness === 1.5 ? 0.95 : savedRoughness;
   const hasFill = el.backgroundColor && el.backgroundColor !== "transparent";
   const fillStyle = el.fillStyle || "hachure";
 
   return {
     seed: el.seed || 12345,
     roughness,
-    bowing: roughness === 0 ? 0 : 1.2,
+    bowing: roughness === 0 ? 0 : Math.min(0.5, roughness * 0.5),
+    maxRandomnessOffset: roughness === 0 ? 0 : Math.min(1.6, Math.max(0.8, roughness)),
+    preserveVertices: true,
     stroke: el.strokeColor || "#1e1e1e",
     strokeWidth: el.strokeWidth || 2.5,
     // Only pass fill when a background color is set
@@ -80,6 +88,8 @@ function getRoughOptions(el) {
     hachureGap: 6,
     hachureAngle: 60,
     strokeLineDash,
+    // The two closely aligned passes make the chosen sloppiness visible,
+    // while the restrained randomness above keeps corners connected.
     disableMultiStroke: roughness === 0,
   };
 }
@@ -97,6 +107,37 @@ function getRoundedRectSvgPath(x, y, w, h, r = 20) {
     `L ${x} ${y + radius} ` +
     `Q ${x} ${y} ${x + radius} ${y} Z`
   );
+}
+
+function getRoundedElbowPath(points, radius = 14) {
+  if (!points || points.length < 2) return "";
+  let d = `M ${points[0].x} ${points[0].y}`;
+  for (let i = 1; i < points.length; i++) {
+    const previous = points[i - 1];
+    const current = points[i];
+    const next = points[i + 1];
+    if (!next) {
+      d += ` L ${current.x} ${current.y}`;
+      continue;
+    }
+    const incoming = Math.hypot(current.x - previous.x, current.y - previous.y);
+    const outgoing = Math.hypot(next.x - current.x, next.y - current.y);
+    if (incoming < 0.01 || outgoing < 0.01) {
+      d += ` L ${current.x} ${current.y}`;
+      continue;
+    }
+    const cornerRadius = Math.min(radius, incoming / 2, outgoing / 2);
+    const before = {
+      x: current.x + ((previous.x - current.x) / incoming) * cornerRadius,
+      y: current.y + ((previous.y - current.y) / incoming) * cornerRadius,
+    };
+    const after = {
+      x: current.x + ((next.x - current.x) / outgoing) * cornerRadius,
+      y: current.y + ((next.y - current.y) / outgoing) * cornerRadius,
+    };
+    d += ` L ${before.x} ${before.y} Q ${current.x} ${current.y} ${after.x} ${after.y}`;
+  }
+  return d;
 }
 
 export function renderArrowheads(el, fromX, fromY, toX, toY, options) {
@@ -249,15 +290,13 @@ export function getElementPaths(el) {
       }
 
       if (arrowType === "elbow") {
-        // Two right-angle segments meeting at horizontal midpoint:
-        // start → (midX, y1) → (midX, y2) → end
-        // This creates a proper "Z" shaped elbow, matching the icon.
-        const midX = (x1 + x2) / 2;
-        const d = `M ${x1} ${y1} L ${midX} ${y1} L ${midX} ${y2} L ${x2} ${y2}`;
+        const points = getElbowArrowPoints(el);
+        const d = getRoundedElbowPath(points);
         const drawable = generator.path(d, { ...options, fill: "none" });
         const linePaths = drawableToPaths(drawable);
-        // Arrowhead direction is the final segment: horizontal toward x2
-        const headPaths = renderArrowheads(el, midX, y2, x2, y2, options);
+        const previous = points[points.length - 2];
+        const end = points[points.length - 1];
+        const headPaths = renderArrowheads(el, previous.x, previous.y, end.x, end.y, options);
         return [...linePaths, ...headPaths];
       }
 

@@ -6,6 +6,7 @@ import {
   STROKE_WIDTHS,
   FONT_FAMILIES,
   FONT_SIZES,
+  CODE_LANGUAGES,
 } from "./types.js";
 import {
   AlignLeft,
@@ -24,6 +25,15 @@ import {
   Trash2,
   Lock,
   Unlock,
+  Bold,
+  Italic,
+  Underline,
+  List,
+  ListOrdered,
+  Signature,
+  Type,
+  BookOpenText,
+  Code2,
 } from "lucide-react";
 
 export default function StylePanel({
@@ -35,20 +45,22 @@ export default function StylePanel({
   onDuplicate,
   onDelete,
   onToggleLock,
+  isToolDefaults = false,
 }) {
-  // Only appear when user clicked on any shape according to selection!
-  if (!selectedElements || selectedElements.length === 0) {
+  if ((!selectedElements || selectedElements.length === 0) && !isToolDefaults) {
     return null;
   }
 
-  const isMulti = selectedElements.length > 1;
-  const isSingle = selectedElements.length === 1;
-  const isAllLocked = selectedElements.every((el) => el.locked);
+  const panelElements = isToolDefaults ? [{ type: "text", ...currentStyle }] : selectedElements;
+  const isMulti = panelElements.length > 1;
+  const isSingle = panelElements.length === 1;
+  const isAllLocked = panelElements.every((el) => el.locked);
 
-  const activeTypes = new Set(selectedElements.map((el) => el.type));
+  const activeTypes = new Set(panelElements.map((el) => el.type));
   const hasShape = activeTypes.has("rectangle") || activeTypes.has("diamond") || activeTypes.has("ellipse");
   const hasLineOrArrow = activeTypes.has("line") || activeTypes.has("arrow");
   const hasText = activeTypes.has("text");
+  const isTextOnly = hasText && activeTypes.size === 1;
 
   const style = isSingle ? { ...currentStyle, ...selectedElements[0] } : currentStyle;
 
@@ -58,7 +70,7 @@ export default function StylePanel({
 
   return (
     <div
-      className="wb-style-panel"
+      className={`wb-style-panel ${isTextOnly ? "wb-style-panel--text" : ""}`}
       onMouseDown={(e) => e.stopPropagation()}
       onPointerDown={(e) => e.stopPropagation()}
       onClick={(e) => e.stopPropagation()}
@@ -189,7 +201,7 @@ export default function StylePanel({
 
 
       {/* Stroke Width */}
-      <div className="wb-style-section">
+      <div className="wb-style-section wb-text-inapplicable">
         <label className="wb-style-label">Stroke width</label>
         <div className="wb-btn-group">
           {[
@@ -212,7 +224,7 @@ export default function StylePanel({
       </div>
 
       {/* Stroke Style */}
-      <div className="wb-style-section">
+      <div className="wb-style-section wb-text-inapplicable">
         <label className="wb-style-label">Stroke style</label>
         <div className="wb-btn-group">
           <button
@@ -249,7 +261,7 @@ export default function StylePanel({
       </div>
 
       {/* Sloppiness */}
-      <div className="wb-style-section">
+      <div className="wb-style-section wb-text-inapplicable">
         <label className="wb-style-label">Sloppiness</label>
         <div className="wb-btn-group">
           {/* Architect (Clean straight) */}
@@ -355,19 +367,24 @@ export default function StylePanel({
             <label className="wb-style-label">Font family</label>
             <div className="wb-btn-group">
               {[
-                { id: FONT_FAMILIES.HAND_DRAWN, label: "Hand-drawn" },
-                { id: FONT_FAMILIES.NORMAL, label: "Normal" },
-                { id: FONT_FAMILIES.CODE, label: "Code" },
-              ].map((f) => (
+                { id: FONT_FAMILIES.HAND_DRAWN, label: "Hand-drawn", icon: Signature },
+                { id: FONT_FAMILIES.NORMAL, label: "Sans-serif", icon: Type },
+                { id: FONT_FAMILIES.SERIF, label: "Serif", icon: BookOpenText },
+                { id: FONT_FAMILIES.CODE, label: "Code", icon: Code2 },
+              ].map((f) => {
+                const Icon = f.icon;
+                return (
                 <button
                   key={f.label}
                   type="button"
                   className={`wb-btn-option ${style.fontFamily === f.id ? "is-active" : ""}`}
                   onClick={() => update({ fontFamily: f.id })}
+                  title={f.label}
+                  aria-label={f.label}
                 >
-                  {f.label}
+                  <Icon size={16} />
                 </button>
-              ))}
+              )})}
             </div>
           </div>
 
@@ -391,6 +408,62 @@ export default function StylePanel({
               ))}
             </div>
           </div>
+
+          {style.fontFamily === FONT_FAMILIES.CODE && (
+            <div className="wb-style-section">
+              <label className="wb-style-label" htmlFor="code-language">Code language</label>
+              <select
+                id="code-language"
+                className="wb-code-language-select"
+                value={style.codeLanguage || "javascript"}
+                onChange={(e) => update({ codeLanguage: e.target.value })}
+              >
+                {CODE_LANGUAGES.map((language) => (
+                  <option key={language.id} value={language.id}>{language.label}</option>
+                ))}
+              </select>
+            </div>
+          )}
+
+          {style.fontFamily !== FONT_FAMILIES.CODE && (
+            <div className="wb-style-section">
+              <label className="wb-style-label">Text formatting</label>
+              <div className="wb-btn-group wb-text-formatting">
+                <button
+                  type="button"
+                  className={`wb-btn-option ${style.fontWeight === "700" ? "is-active" : ""}`}
+                  onClick={() => update({ fontWeight: style.fontWeight === "700" ? "normal" : "700" })}
+                  title="Bold"
+                ><Bold size={15} /></button>
+                <button
+                  type="button"
+                  className={`wb-btn-option ${style.fontStyle === "italic" ? "is-active" : ""}`}
+                  onClick={() => update({ fontStyle: style.fontStyle === "italic" ? "normal" : "italic" })}
+                  title="Italic"
+                ><Italic size={15} /></button>
+                <button
+                  type="button"
+                  className={`wb-btn-option ${style.textDecoration === "underline" ? "is-active" : ""}`}
+                  onClick={() => update({ textDecoration: style.textDecoration === "underline" ? "none" : "underline" })}
+                  title="Underline"
+                ><Underline size={15} /></button>
+              </div>
+              <div className="wb-btn-group wb-text-formatting">
+                <button
+                  type="button"
+                  className={`wb-btn-option ${style.listStyle === "bullet" ? "is-active" : ""}`}
+                  onClick={() => update({ listStyle: style.listStyle === "bullet" ? "none" : "bullet" })}
+                  title="Bulleted list"
+                ><List size={15} /></button>
+                <button
+                  type="button"
+                  className={`wb-btn-option ${style.listStyle === "ordered" ? "is-active" : ""}`}
+                  onClick={() => update({ listStyle: style.listStyle === "ordered" ? "none" : "ordered" })}
+                  title="Numbered list"
+                ><ListOrdered size={15} /></button>
+              </div>
+            </div>
+          )}
 
           <div className="wb-style-section">
             <label className="wb-style-label">Alignment</label>
@@ -441,8 +514,8 @@ export default function StylePanel({
         />
       </div>
 
-      {/* Actions */}
-      <div className="wb-style-section wb-actions-section">
+      {/* Element-only actions are hidden for the Text tool defaults. */}
+      {!isToolDefaults && <div className="wb-style-section wb-actions-section">
         <label className="wb-style-label">Actions</label>
         <div className="wb-actions-grid">
           <button
@@ -502,10 +575,10 @@ export default function StylePanel({
             <Trash2 size={15} />
           </button>
         </div>
-      </div>
+      </div>}
 
       {/* Align & Distribute (when 2+ items selected) */}
-      {isMulti && (
+      {!isToolDefaults && isMulti && (
         <div className="wb-style-section wb-actions-section">
           <label className="wb-style-label">Align & Distribute</label>
           <div className="wb-actions-grid">

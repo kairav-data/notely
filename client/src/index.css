@@ -258,6 +258,16 @@ button {
   background: #ffffff;
   cursor: crosshair;
 }
+
+/* Official Excalidraw editor fills the same viewport used by the former
+   in-house whiteboard, including the right-hand split-view pane. */
+.excalidraw-whiteboard {
+  position: relative;
+  width: 100%;
+  height: calc(100vh - 56px);
+  min-width: 0;
+}
+.split-pane .excalidraw-whiteboard { height: 100%; }
 :root[data-theme="dark"] .wb-container { background: #121212; }
 
 .wb-container.is-panning { cursor: grab; }
@@ -443,11 +453,47 @@ button {
 }
 
 .wb-style-section { display: flex; flex-direction: column; gap: 5px; }
+.wb-style-panel--text .wb-text-inapplicable { display: none; }
 .wb-style-label {
   font-size: 11.5px;
   font-weight: 600;
   color: var(--color-muted-fg);
 }
+.wb-code-language-select {
+  width: 100%;
+  height: 31px;
+  padding: 0 8px;
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  background: var(--color-surface);
+  color: var(--color-foreground);
+  font: inherit;
+  font-size: 12px;
+}
+.wb-text-formatting + .wb-text-formatting { margin-top: 4px; }
+.wb-text-formatting .wb-btn-option { min-width: 0; }
+.wb-code-block {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  padding: 7px 9px;
+  border: 1px solid #d9d6fe;
+  border-radius: 7px;
+  background: #f7f7ff;
+  box-sizing: border-box;
+}
+.wb-code-block pre {
+  margin: 0;
+  font-family: "JetBrains Mono", Consolas, monospace;
+  line-height: 1.4;
+  white-space: pre;
+}
+.wb-code-block .hljs { color: #334155; }
+.wb-code-block .hljs-keyword, .wb-code-block .hljs-selector-tag, .wb-code-block .hljs-literal { color: #7c3aed; }
+.wb-code-block .hljs-string, .wb-code-block .hljs-attr { color: #15803d; }
+.wb-code-block .hljs-number, .wb-code-block .hljs-built_in { color: #c2410c; }
+.wb-code-block .hljs-title, .wb-code-block .hljs-function, .wb-code-block .hljs-params { color: #0369a1; }
+.wb-code-block .hljs-comment, .wb-code-block .hljs-quote { color: #64748b; font-style: italic; }
 .wb-color-row {
   display: flex;
   flex-wrap: wrap;

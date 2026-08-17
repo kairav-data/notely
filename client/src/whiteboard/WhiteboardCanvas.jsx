@@ -1,4 +1,5 @@
 import { useRef, useState, useEffect, useCallback } from "react";
+import hljs from "highlight.js/lib/common";
 import {
   TOOLS,
   DEFAULT_ELEMENT_STYLE,
@@ -11,6 +12,7 @@ import {
   isElementInBox,
   getTransformHandles,
   hitTestHandle,
+  getElbowArrowPoints,
   alignElements,
   distributeElements,
   translateElement,
@@ -25,6 +27,53 @@ import ShortcutsModal from "./ShortcutsModal.jsx";
 import ArrowToolPanel from "./ArrowToolPanel.jsx";
 
 const GRID_SIZE = 20;
+
+function getHighlightedCode(source, language) {
+  const code = source || "";
+  const selectedLanguage = language || "javascript";
+  if (!hljs.getLanguage(selectedLanguage)) {
+    return code.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  }
+  return hljs.highlight(code, { language: selectedLanguage, ignoreIllegals: true }).value;
+}
+
+function getElbowHandles(el) {
+  const points = getElbowArrowPoints(el) || [];
+  // Hollow circles are the route's explicit endpoints and bends. They do not
+  // change the route until a user intentionally drags one of them.
+  const endpoints = points.map((point, index) => ({
+    id: `elbow-point-${index}`,
+    kind: "point",
+    index,
+    x: point.x,
+    y: point.y,
+  }));
+  const segmentHandles = points.slice(1).map((point, index) => {
+    const start = points[index];
+    return {
+      id: `elbow-segment-${index}`,
+      kind: "segment",
+      index,
+      x: (start.x + point.x) / 2,
+      y: (start.y + point.y) / 2,
+    };
+  });
+  return { points, endpoints, segmentHandles };
+}
+
+function createElbowDetour(points, segmentIndex, x, y) {
+  const start = points[segmentIndex];
+  const end = points[segmentIndex + 1];
+  if (!start || !end) return points;
+
+  // Replace one edge with a clean two-corner detour. A horizontal edge dragged
+  // upward becomes vertical → horizontal → vertical, as in the reference.
+  const detour = Math.abs(end.x - start.x) >= Math.abs(end.y - start.y)
+    ? [{ x: start.x, y }, { x: end.x, y }]
+    : [{ x, y: start.y }, { x, y: end.y }];
+  return [...points.slice(0, segmentIndex + 1), ...detour, ...points.slice(segmentIndex + 1)];
+}
+
 
 export default function WhiteboardCanvas({
   initialElements = [],
@@ -133,10 +182,31 @@ export default function WhiteboardCanvas({
   const selectedElements = elements.filter((el) => selectedIds.includes(el.id));
   const selectionBounds = getCombinedBounds(selectedElements);
   const transformHandles = selectionBounds ? getTransformHandles(selectionBounds, zoom) : [];
+  const hasOnlyArrows = selectedElements.length > 0
+    && selectedElements.every((el) => el.type === TOOLS.ARROW);
+  const selectedElbowArrow = selectedElements.length === 1
+    && selectedElements[0].type === TOOLS.ARROW
+    && selectedElements[0].arrowType === "elbow"
+    ? selectedElements[0]
+    : null;
+  const elbowHandles = selectedElbowArrow ? getElbowHandles(selectedElbowArrow) : null;
   const showStylePanel = tool === TOOLS.SELECTION
     && action !== "drawing"
     && !draftElement
-    && selectedIds.length > 0;
+    && selectedIds.length > 0
+    && !hasOnlyArrows;
+  const showTextToolPanel = tool === TOOLS.TEXT;
+  const showArrowToolPanel = action !== "drawing"
+    && !draftElement
+    && (
+      // Configure the next arrow before drawing it.
+      (tool === TOOLS.ARROW && selectedIds.length === 0)
+      // Use arrow-specific controls whenever arrow(s) are selected for editing.
+      || (tool === TOOLS.SELECTION && hasOnlyArrows)
+    );
+  const arrowPanelStyle = hasOnlyArrows && selectedElements.length === 1
+    ? { ...currentStyle, ...selectedElements[0] }
+    : currentStyle;
 
   // Style change handler
   const handleStyleChange = useCallback((patch) => {
@@ -353,6 +423,19 @@ export default function WhiteboardCanvas({
 
     // Selection tool: Check transform handles first
     if (tool === TOOLS.SELECTION) {
+      if (selectedElbowArrow && elbowHandles) {
+        const elbowHandle = hitTestHandle(
+          [...elbowHandles.endpoints, ...elbowHandles.segmentHandles], x, y, zoom, 9
+        );
+        if (elbowHandle) {
+          setAction(elbowHandle.kind === "point"
+            ? "editing-elbow-point"
+            : "creating-elbow-detour");
+          activeHandleRef.current = elbowHandle;
+          origElementsRef.current = [{ ...selectedElbowArrow, elbowPoints: elbowHandles.points }];
+          return;
+        }
+      }
       const hitHandle = hitTestHandle(transformHandles, x, y, zoom);
       if (hitHandle && selectedElements.length > 0) {
         setAction("resizing");
@@ -434,6 +517,24 @@ export default function WhiteboardCanvas({
     setAction("drawing");
     setDraftElement(baseElement);
     dragStartRef.current = { x: snap(x), y: snap(y) };
+  };
+
+  // SVG elements are rendered with pointer events disabled so canvas gestures
+  // can be handled consistently by the container. Resolve text double-clicks
+  // here to open the inline editor for existing text.
+  const handleDoubleClick = (e) => {
+    if (e.target.closest?.('.wb-style-panel, .wb-topbar, .wb-top-left-menu, .wb-bottom-left-dock, .wb-minimap, .wb-modal-overlay')) {
+      return;
+    }
+    const { x, y } = screenToCanvas(e.clientX, e.clientY);
+    const textElement = [...elements].reverse().find(
+      (el) => el.type === TOOLS.TEXT && hitTestElement(el, x, y)
+    );
+    if (!textElement) return;
+
+    setTool(TOOLS.SELECTION);
+    setSelectedIds([textElement.id]);
+    setEditingTextId(textElement.id);
   };
 
   // Pointer Move handler
@@ -535,6 +636,21 @@ export default function WhiteboardCanvas({
             };
           }
 
+          if (orig.type === TOOLS.TEXT) {
+            // Text content scales along with its bounding box. Using the
+            // average axis scale keeps a one-direction resize readable while
+            // still matching the font to the box's overall new size.
+            const fontScale = Math.max(0.3, (scaleX + scaleY) / 2);
+            return {
+              ...orig,
+              x: newMinX + relX,
+              y: newMinY + relY,
+              width: newW,
+              height: newH,
+              fontSize: Math.max(8, (orig.fontSize || 22) * fontScale),
+            };
+          }
+
           return {
             ...orig,
             x: newMinX + relX,
@@ -547,6 +663,52 @@ export default function WhiteboardCanvas({
       });
 
       setElements(next);
+      return;
+    }
+
+    if (action === "editing-elbow-point" || action === "creating-elbow-detour") {
+      const original = origElementsRef.current[0];
+      const handle = activeHandleRef.current;
+      if (!original || !handle) return;
+      const originalPoints = getElbowArrowPoints(original);
+      let elbowPoints;
+      if (action === "creating-elbow-detour") {
+        elbowPoints = createElbowDetour(originalPoints, handle.index, snap(x), snap(y));
+      } else {
+        elbowPoints = originalPoints.map((point) => ({ ...point }));
+        const pointIndex = handle.index;
+        const previous = elbowPoints[pointIndex - 1];
+        const next = elbowPoints[pointIndex + 1];
+        const moved = { x: snap(x), y: snap(y) };
+        // Keep the end segment orthogonal as an endpoint is repositioned.
+        if (pointIndex === 0 && next) {
+          if (Math.abs(next.x - moved.x) >= Math.abs(next.y - moved.y)) moved.y = next.y;
+          else moved.x = next.x;
+        } else if (pointIndex === elbowPoints.length - 1 && previous) {
+          if (Math.abs(moved.x - previous.x) >= Math.abs(moved.y - previous.y)) moved.y = previous.y;
+          else moved.x = previous.x;
+        } else if (previous && next) {
+          // A hollow bend handle adjusts the existing route only. It slides
+          // perpendicular to its incoming edge and carries that edge with it;
+          // it never adds another elbow. Use a filled midpoint handle to add
+          // a new elbow instead.
+          const incomingIsHorizontal = Math.abs(previous.y - elbowPoints[pointIndex].y)
+            <= Math.abs(previous.x - elbowPoints[pointIndex].x);
+          if (incomingIsHorizontal) {
+            moved.x = elbowPoints[pointIndex].x;
+            previous.y = moved.y;
+          } else {
+            moved.y = elbowPoints[pointIndex].y;
+            previous.x = moved.x;
+          }
+        }
+        elbowPoints[pointIndex] = moved;
+      }
+      const first = elbowPoints[0];
+      const last = elbowPoints[elbowPoints.length - 1];
+      setElements(elements.map((el) => el.id === original.id
+        ? { ...original, x: first.x, y: first.y, x2: last.x, y2: last.y, elbowPoints }
+        : el));
       return;
     }
 
@@ -609,7 +771,7 @@ export default function WhiteboardCanvas({
       if (!isLocked) {
         setTool(TOOLS.SELECTION);
       }
-    } else if (action === "moving" || action === "resizing") {
+    } else if (action === "moving" || action === "resizing" || action === "editing-elbow-point" || action === "creating-elbow-detour") {
       updateElements(elements);
     }
 
@@ -620,7 +782,7 @@ export default function WhiteboardCanvas({
   // Wheel handler for zoom & pan
   const handleWheel = (e) => {
     // Don't pan/zoom if scrolling inside a floating UI panel
-    const isOnPanel = e.target.closest?.('.wb-style-panel, .wb-topbar, .wb-top-left-menu, .wb-bottom-left-dock, .wb-minimap, .wb-modal-overlay');
+    const isOnPanel = e.target.closest?.('.wb-style-panel, .wb-arrow-tool-panel, .wb-topbar, .wb-top-left-menu, .wb-bottom-left-dock, .wb-minimap, .wb-modal-overlay');
     if (isOnPanel) return;
 
     e.preventDefault();
@@ -770,10 +932,11 @@ export default function WhiteboardCanvas({
   return (
     <div
       ref={containerRef}
-      className={`wb-container ${tool === TOOLS.HAND || action === "panning" ? "is-panning" : ""} ${showStylePanel ? "has-style-panel" : ""}`}
+      className={`wb-container ${tool === TOOLS.HAND || action === "panning" ? "is-panning" : ""} ${showStylePanel || showArrowToolPanel || showTextToolPanel ? "has-style-panel" : ""}`}
       onPointerDown={handlePointerDown}
       onPointerMove={handlePointerMove}
       onPointerUp={handlePointerUp}
+      onDoubleClick={handleDoubleClick}
       onWheel={handleWheel}
     >
       {/* Top Excalidraw Toolbar */}
@@ -804,10 +967,20 @@ export default function WhiteboardCanvas({
         />
       )}
 
-      {/* Arrow Tool Properties Panel (appears only when the Arrow tool is active, no element selected) */}
-      {tool === TOOLS.ARROW && selectedIds.length === 0 && !draftElement && (
-        <ArrowToolPanel
+      {/* Text defaults stay visible while the Text (T) tool is active. */}
+      {showTextToolPanel && (
+        <StylePanel
+          selectedElements={[]}
+          isToolDefaults
           currentStyle={currentStyle}
+          onStyleChange={handleStyleChange}
+        />
+      )}
+
+      {/* Arrow properties replace the common panel for new and selected arrows. */}
+      {showArrowToolPanel && (
+        <ArrowToolPanel
+          currentStyle={arrowPanelStyle}
           onStyleChange={handleStyleChange}
         />
       )}
@@ -861,6 +1034,27 @@ export default function WhiteboardCanvas({
           if (el.type === "text") {
             const b = getElementBounds(el);
             const isEditing = editingTextId === el.id;
+            const isCode = el.fontFamily === "'JetBrains Mono', monospace";
+            if (isCode) {
+              return (
+                <foreignObject
+                  key={el.id}
+                  x={b.x}
+                  y={b.y}
+                  width={Math.max(b.width, 120)}
+                  height={Math.max(b.height, (el.fontSize || 22) * 1.5)}
+                  opacity={opacity}
+                  style={{ display: isEditing ? "none" : "block", pointerEvents: "none" }}
+                >
+                  <div xmlns="http://www.w3.org/1999/xhtml" className="wb-code-block">
+                    <pre style={{ fontSize: `${el.fontSize || 22}px` }}><code
+                      className={`hljs language-${el.codeLanguage || "javascript"}`}
+                      dangerouslySetInnerHTML={{ __html: getHighlightedCode(el.text, el.codeLanguage) }}
+                    /></pre>
+                  </div>
+                </foreignObject>
+              );
+            }
             return (
               <g key={el.id} opacity={opacity} onDoubleClick={() => setEditingTextId(el.id)}>
                 <text
@@ -870,6 +1064,9 @@ export default function WhiteboardCanvas({
                   fontSize={`${el.fontSize || 22}px`}
                   fill={el.strokeColor || "#1e1e1e"}
                   textAnchor={el.textAlign === "center" ? "middle" : el.textAlign === "right" ? "end" : "start"}
+                  fontWeight={el.fontWeight || "normal"}
+                  fontStyle={el.fontStyle || "normal"}
+                  textDecoration={el.textDecoration || "none"}
                   style={{ userSelect: "none", cursor: "pointer", display: isEditing ? "none" : "block" }}
                 >
                   {(el.text || "").split("\n").map((line, idx) => (
@@ -878,7 +1075,7 @@ export default function WhiteboardCanvas({
                       x={el.textAlign === "center" ? b.x + b.width / 2 : el.textAlign === "right" ? b.x + b.width : b.x}
                       dy={idx === 0 ? 0 : `${(el.fontSize || 22) * 1.35}px`}
                     >
-                      {line}
+                      {el.listStyle === "bullet" ? `• ${line}` : el.listStyle === "ordered" ? `${idx + 1}. ${line}` : line}
                     </tspan>
                   ))}
                 </text>
@@ -939,7 +1136,7 @@ export default function WhiteboardCanvas({
         )}
 
         {/* Selection Bounding Box & Transform Handles (Styled in Excalidraw purple) */}
-        {selectionBounds && selectedElements.length > 0 && action !== "drawing" && (
+        {selectionBounds && selectedElements.length > 0 && action !== "drawing" && !selectedElbowArrow && (
           <g className="wb-selection-overlay">
             <rect
               x={selectionBounds.minX - 4 / zoom}
@@ -985,6 +1182,38 @@ export default function WhiteboardCanvas({
                 rx={1.5 / zoom}
                 style={{ cursor: h.cursor }}
               />
+            ))}
+          </g>
+        )}
+
+        {/* Hollow circles move existing route points. Drag a filled midpoint
+            perpendicular to its edge to create a new elbow. */}
+        {selectedElbowArrow && elbowHandles && action !== "drawing" && (
+          <g className="wb-elbow-handles">
+            {elbowHandles.endpoints.map((handle) => (
+              <circle
+                key={handle.id}
+                cx={handle.x}
+                cy={handle.y}
+                r={5 / zoom}
+                fill="#ffffff"
+                stroke="#6965db"
+                strokeWidth={1.5 / zoom}
+                style={{ cursor: "grab" }}
+              />
+            ))}
+            {elbowHandles.segmentHandles.map((handle) => (
+              <circle
+                key={handle.id}
+                cx={handle.x}
+                cy={handle.y}
+                r={5 / zoom}
+                fill="#a78bfa"
+                fillOpacity="0.72"
+                style={{ cursor: "grab" }}
+              >
+                <title>Drag perpendicular to this edge to add an elbow.</title>
+              </circle>
             ))}
           </g>
         )}

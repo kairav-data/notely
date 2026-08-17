@@ -35,8 +35,8 @@ export const ARROW_TYPES = {
 
 export const ROUGHNESS_LEVELS = {
   ARCHITECT: 0,
-  ARTIST: 1.5,
-  CARTOONIST: 2.8,
+  ARTIST: 0.95,
+  CARTOONIST: 1.8,
 };
 
 export const STROKE_WIDTHS = {
@@ -49,6 +49,7 @@ export const STROKE_WIDTHS = {
 export const FONT_FAMILIES = {
   HAND_DRAWN: "'Caveat', 'Patrick Hand', cursive",
   NORMAL: "'Inter', sans-serif",
+  SERIF: "Georgia, 'Times New Roman', serif",
   CODE: "'JetBrains Mono', monospace",
 };
 
@@ -58,6 +59,20 @@ export const FONT_SIZES = {
   LARGE: 30,
   XLARGE: 40,
 };
+
+export const CODE_LANGUAGES = [
+  { id: "javascript", label: "JavaScript" },
+  { id: "typescript", label: "TypeScript" },
+  { id: "python", label: "Python" },
+  { id: "java", label: "Java" },
+  { id: "csharp", label: "C#" },
+  { id: "cpp", label: "C++" },
+  { id: "html", label: "HTML" },
+  { id: "css", label: "CSS" },
+  { id: "json", label: "JSON" },
+  { id: "sql", label: "SQL" },
+  { id: "bash", label: "Bash" },
+];
 
 export const COLOR_PALETTE = {
   STROKES: [
@@ -94,6 +109,11 @@ export const DEFAULT_ELEMENT_STYLE = {
   fontFamily: FONT_FAMILIES.HAND_DRAWN,
   fontSize: FONT_SIZES.MEDIUM,
   textAlign: "left",
+  fontWeight: "normal",
+  fontStyle: "normal",
+  textDecoration: "none",
+  listStyle: "none",
+  codeLanguage: "javascript",
   startArrowhead: null,
   endArrowhead: "arrow", // arrow | triangle | dot | bar | null
   arrowType: "straight", // straight | curved | elbow

@@ -33,6 +33,18 @@ export function getElementBounds(el) {
     }
     case "line":
     case "arrow": {
+      const route = el.type === "arrow" && el.arrowType === "elbow"
+        ? getElbowArrowPoints(el)
+        : null;
+      if (route) {
+        const xs = route.map((point) => point.x);
+        const ys = route.map((point) => point.y);
+        const minX = Math.min(...xs);
+        const minY = Math.min(...ys);
+        const maxX = Math.max(...xs);
+        const maxY = Math.max(...ys);
+        return { x: minX, y: minY, width: Math.max(1, maxX - minX), height: Math.max(1, maxY - minY), minX, minY, maxX, maxY };
+      }
       const x1 = el.x;
       const y1 = el.y;
       const x2 = el.x2 ?? (el.x + (el.width || 0));
@@ -80,6 +92,27 @@ export function getElementBounds(el) {
     default:
       return { x: el.x, y: el.y, width: el.width || 10, height: el.height || 10, minX: el.x, minY: el.y, maxX: el.x + (el.width || 10), maxY: el.y + (el.height || 10) };
   }
+}
+
+// Elbow arrows retain their route as absolute points after a user adds or
+// adjusts bends. Older arrows have no saved route, so derive the original
+// three-segment route for backward compatibility.
+export function getElbowArrowPoints(el) {
+  if (!el || el.type !== "arrow" || el.arrowType !== "elbow") return null;
+  if (Array.isArray(el.elbowPoints) && el.elbowPoints.length >= 2) {
+    return el.elbowPoints;
+  }
+  const x1 = el.x;
+  const y1 = el.y;
+  const x2 = el.x2 ?? (el.x + (el.width || 0));
+  const y2 = el.y2 ?? (el.y + (el.height || 0));
+  const midX = (x1 + x2) / 2;
+  return [
+    { x: x1, y: y1 },
+    { x: midX, y: y1 },
+    { x: midX, y: y2 },
+    { x: x2, y: y2 },
+  ];
 }
 
 export function getCombinedBounds(elements) {
@@ -160,6 +193,13 @@ export function hitTestElement(el, px, py, tolerance = 8) {
     }
     case "line":
     case "arrow": {
+      const route = el.type === "arrow" && el.arrowType === "elbow"
+        ? getElbowArrowPoints(el)
+        : null;
+      if (route) {
+        return route.some((point, index) => index > 0
+          && distToSegment(px, py, route[index - 1].x, route[index - 1].y, point.x, point.y) <= tolerance + (el.strokeWidth || 2) + 4);
+      }
       const x1 = el.x;
       const y1 = el.y;
       const x2 = el.x2 ?? (el.x + (el.width || 0));
@@ -322,6 +362,9 @@ export function translateElement(el, dx, dy) {
         y: el.y + dy,
         x2: (el.x2 !== undefined ? el.x2 : el.x + (el.width || 0)) + dx,
         y2: (el.y2 !== undefined ? el.y2 : el.y + (el.height || 0)) + dy,
+        ...(Array.isArray(el.elbowPoints)
+          ? { elbowPoints: el.elbowPoints.map((point) => ({ x: point.x + dx, y: point.y + dy })) }
+          : {}),
       };
     case "pen":
       return { ...el, x: el.x + dx, y: el.y + dy };
