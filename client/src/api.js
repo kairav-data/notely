@@ -21,6 +21,7 @@ export const api = {
   register: (details) => req("/auth/register", { method: "POST", body: JSON.stringify(details) }),
   login: (email, password) => req("/auth/login", { method: "POST", body: JSON.stringify({ email, password }) }),
   me: () => req("/auth/me"),
+  updateProfile: (details) => req("/auth/profile", { method: "PUT", body: JSON.stringify(details) }),
   list: () => req("/notes"),
   get: (id) => req(`/notes/${id}`),
   create: (data) => req("/notes", { method: "POST", body: JSON.stringify(data) }),

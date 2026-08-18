@@ -5,6 +5,7 @@ import {
   ROUGHNESS_LEVELS,
   STROKE_WIDTHS,
   FONT_FAMILIES,
+  FONT_FAMILY_LIST,
   FONT_SIZES,
   CODE_LANGUAGES,
 } from "./types.js";
@@ -470,27 +471,69 @@ export default function StylePanel({
       {showTypography && (
         <>
           <div className="wb-style-section">
-            <label className="wb-style-label">Font family</label>
-            <div className="wb-btn-group">
+            <label className="wb-style-label" htmlFor="wb-font-select">Font family</label>
+            <select
+              id="wb-font-select"
+              className="wb-font-family-select"
+              value={style.fontFamily || FONT_FAMILIES.CAVEAT}
+              onChange={(e) => update({ fontFamily: e.target.value })}
+            >
+              <optgroup label="✍️ Handwritten & Casual">
+                {FONT_FAMILY_LIST.filter((f) => f.category === "Handwritten").map((f) => (
+                  <option key={f.label} value={f.id} style={{ fontFamily: f.fontCss }}>
+                    {f.label}
+                  </option>
+                ))}
+              </optgroup>
+              <optgroup label="🔤 Modern Sans-Serif">
+                {FONT_FAMILY_LIST.filter((f) => f.category === "Sans-Serif").map((f) => (
+                  <option key={f.label} value={f.id} style={{ fontFamily: f.fontCss }}>
+                    {f.label}
+                  </option>
+                ))}
+              </optgroup>
+              <optgroup label="📖 Editorial & Serif">
+                {FONT_FAMILY_LIST.filter((f) => f.category === "Serif").map((f) => (
+                  <option key={f.label} value={f.id} style={{ fontFamily: f.fontCss }}>
+                    {f.label}
+                  </option>
+                ))}
+              </optgroup>
+              <optgroup label="💻 Monospace & Code">
+                {FONT_FAMILY_LIST.filter((f) => f.category === "Monospace").map((f) => (
+                  <option key={f.label} value={f.id} style={{ fontFamily: f.fontCss }}>
+                    {f.label}
+                  </option>
+                ))}
+              </optgroup>
+            </select>
+
+            <div className="wb-btn-group" style={{ marginTop: 4 }}>
               {[
-                { id: FONT_FAMILIES.HAND_DRAWN, label: "Hand-drawn", icon: Signature },
-                { id: FONT_FAMILIES.NORMAL, label: "Sans-serif", icon: Type },
-                { id: FONT_FAMILIES.SERIF, label: "Serif", icon: BookOpenText },
-                { id: FONT_FAMILIES.CODE, label: "Code", icon: Code2 },
+                { id: FONT_FAMILIES.CAVEAT, label: "Hand-drawn", icon: Signature },
+                { id: FONT_FAMILIES.INTER, label: "Sans-serif", icon: Type },
+                { id: FONT_FAMILIES.PLAYFAIR, label: "Serif", icon: BookOpenText },
+                { id: FONT_FAMILIES.JETBRAINS_MONO, label: "Code", icon: Code2 },
               ].map((f) => {
                 const Icon = f.icon;
+                const isActive = style.fontFamily === f.id ||
+                  (f.label === "Hand-drawn" && style.fontFamily?.includes("Caveat")) ||
+                  (f.label === "Sans-serif" && style.fontFamily?.includes("Inter")) ||
+                  (f.label === "Serif" && (style.fontFamily?.includes("Playfair") || style.fontFamily?.includes("Georgia"))) ||
+                  (f.label === "Code" && style.fontFamily?.includes("JetBrains Mono"));
                 return (
-                <button
-                  key={f.label}
-                  type="button"
-                  className={`wb-btn-option ${style.fontFamily === f.id ? "is-active" : ""}`}
-                  onClick={() => update({ fontFamily: f.id })}
-                  title={f.label}
-                  aria-label={f.label}
-                >
-                  <Icon size={16} />
-                </button>
-              )})}
+                  <button
+                    key={f.label}
+                    type="button"
+                    className={`wb-btn-option ${isActive ? "is-active" : ""}`}
+                    onClick={() => update({ fontFamily: f.id })}
+                    title={f.label}
+                    aria-label={f.label}
+                  >
+                    <Icon size={15} />
+                  </button>
+                );
+              })}
             </div>
           </div>
 
@@ -515,7 +558,7 @@ export default function StylePanel({
             </div>
           </div>
 
-          {style.fontFamily === FONT_FAMILIES.CODE && (
+          {(style.fontFamily?.includes("JetBrains Mono") || style.fontFamily?.includes("Fira Code") || style.fontFamily?.includes("Space Mono")) && (
             <div className="wb-style-section">
               <label className="wb-style-label" htmlFor="code-language">Code language</label>
               <select
@@ -531,7 +574,7 @@ export default function StylePanel({
             </div>
           )}
 
-          {style.fontFamily !== FONT_FAMILIES.CODE && (
+          {!(style.fontFamily?.includes("JetBrains Mono") || style.fontFamily?.includes("Fira Code") || style.fontFamily?.includes("Space Mono")) && (
             <div className="wb-style-section">
               <label className="wb-style-label">Text formatting</label>
               <div className="wb-btn-group wb-text-formatting">

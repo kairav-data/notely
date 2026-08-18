@@ -84,7 +84,7 @@ export function generateSvgString(elements, options = {}) {
   return `<?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="${minX} ${minY} ${width} ${height}" width="${width}" height="${height}">
   <style>
-    @import url('https://fonts.googleapis.com/css2?family=Caveat:wght@400;700&amp;family=Inter:wght@400;600&amp;family=JetBrains+Mono:wght@400;600&amp;display=swap');
+    @import url('https://fonts.googleapis.com/css2?family=Architects+Daughter&amp;family=Caveat:wght@400;700&amp;family=Fira+Code:wght@400;600&amp;family=Indie+Flower&amp;family=Inter:wght@400;600;700&amp;family=JetBrains+Mono:wght@400;600&amp;family=Kalam:wght@400;700&amp;family=Lora:ital,wght@0,400;0,600;1,400&amp;family=Merriweather:wght@400;700&amp;family=Montserrat:wght@400;600;700&amp;family=Open+Sans:wght@400;600;700&amp;family=Oswald:wght@500;700&amp;family=Pacifico&amp;family=Patrick+Hand&amp;family=Playfair+Display:ital,wght@0,400;0,600;1,400&amp;family=Poppins:wght@400;600;700&amp;family=Roboto:wght@400;500;700&amp;family=Shadows+Into+Light&amp;family=Space+Mono:wght@400;700&amp;display=swap');
     text { font-weight: 500; }
   </style>
   ${body}

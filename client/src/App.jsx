@@ -1,13 +1,15 @@
 import { useEffect, useRef, useState, useCallback } from "react";
-import { PanelLeftOpen, LogOut } from "lucide-react";
+import { PanelLeftOpen, LogOut, User as UserIcon } from "lucide-react";
 import { api } from "./api.js";
 import AuthScreen from "./components/AuthScreen.jsx";
 import Sidebar from "./components/Sidebar.jsx";
+import ProfileModal from "./components/ProfileModal.jsx";
 import WhiteboardCanvas from "./whiteboard/WhiteboardCanvas.jsx";
 
 export default function App() {
   const [user, setUser] = useState(null);
   const [checkingSession, setCheckingSession] = useState(true);
+  const [showProfile, setShowProfile] = useState(false);
   const [notes, setNotes] = useState([]);
   const [activeId, setActiveId] = useState(null);
   const [activeNote, setActiveNote] = useState(null);
@@ -33,7 +35,10 @@ export default function App() {
       setCheckingSession(false);
       return;
     }
-    api.me().then(setUser).catch(() => localStorage.removeItem("notely-token")).finally(() => setCheckingSession(false));
+    api.me()
+      .then((res) => setUser(res?.user || res))
+      .catch(() => localStorage.removeItem("notely-token"))
+      .finally(() => setCheckingSession(false));
   }, []);
 
   // Initial load.
@@ -180,6 +185,8 @@ export default function App() {
           onCollapse={() => setCollapsed(true)}
           theme={theme}
           onToggleTheme={() => setTheme((value) => (value === "dark" ? "light" : "dark"))}
+          user={user}
+          onOpenProfile={() => setShowProfile(true)}
         />
       )}
       <main className="main">
@@ -187,8 +194,8 @@ export default function App() {
           <>
             <div className="topbar">
               {collapsed && (
-                <button className="icon-btn" title="Show pages" onClick={() => setCollapsed(false)}>
-                  <PanelLeftOpen size={19} />
+                <button className="icon-btn" title="Show sidebar (Ctrl+\)" onClick={() => setCollapsed(false)}>
+                  <PanelLeftOpen size={18} />
                 </button>
               )}
               <input
@@ -198,37 +205,64 @@ export default function App() {
                 placeholder="Untitled whiteboard"
                 aria-label="Whiteboard title"
               />
-              <span className="save-state">{saveLabel}</span>
-              <button className="icon-btn" title="Sign out" onClick={logout}><LogOut size={18} /></button>
+              <span className={`save-badge save-badge--${saveState}`}>
+                <span className="save-dot" />
+                <span>{saveLabel}</span>
+              </span>
+              {user && (
+                <button
+                  type="button"
+                  className="topbar-user-badge"
+                  onClick={() => setShowProfile(true)}
+                  title={`Signed in as ${user.email} (Click to open profile)`}
+                >
+                  {user.firstName ? `${user.firstName[0]}${user.lastName ? user.lastName[0] : ""}` : user.email?.[0]?.toUpperCase() || "U"}
+                </button>
+              )}
+              <button className="icon-btn" title="Sign out" onClick={logout}><LogOut size={17} /></button>
             </div>
             <WhiteboardCanvas
               key={`wb-${activeNote._id}`}
               initialElements={activeNote.drawing || []}
               onChange={onDrawingChange}
-              noteTitle="Whiteboard"
+              noteTitle={activeNote.title || "Whiteboard"}
               theme={theme}
               onToggleTheme={() => setTheme((t) => (t === "dark" ? "light" : "dark"))}
             />
           </>
         ) : (
           <div className="empty">
-            <h2>Preparing your whiteboard…</h2>
+            <h2>Preparing your workspace…</h2>
+            <p>Loading your whiteboards and canvas tools.</p>
           </div>
+        )}
+
+        {showProfile && user && (
+          <ProfileModal
+            user={user}
+            notesCount={notes.length}
+            onUpdateUser={(updated) => setUser((prev) => ({ ...prev, ...updated }))}
+            onLogout={logout}
+            onClose={() => setShowProfile(false)}
+          />
         )}
 
         {error && (
           <div
             style={{
-              position: "fixed", bottom: 18, left: "50%", transform: "translateX(-50%)",
-              background: "var(--color-destructive)", color: "#fff", padding: "10px 16px",
-              borderRadius: 10, fontSize: 13.5, boxShadow: "var(--shadow-md)", zIndex: 100,
+              position: "fixed", bottom: 24, left: "50%", transform: "translateX(-50%)",
+              background: "var(--color-destructive)", color: "#fff", padding: "10px 18px",
+              borderRadius: "var(--radius-sm)", fontSize: 13, fontWeight: 550,
+              boxShadow: "var(--shadow-floating)", zIndex: 1000, display: "flex",
+              alignItems: "center", gap: 8, cursor: "pointer",
             }}
             onClick={() => setError(null)}
           >
-            {error} · is MongoDB running? (tap to dismiss)
+            <span>{error} · Click to dismiss</span>
           </div>
         )}
       </main>
     </div>
   );
 }
+

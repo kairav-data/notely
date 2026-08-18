@@ -47,11 +47,70 @@ export const STROKE_WIDTHS = {
 };
 
 export const FONT_FAMILIES = {
+  // Hand-drawn & Script
+  CAVEAT: "'Caveat', cursive",
+  ARCHITECT: "'Architects Daughter', cursive",
+  PATRICK_HAND: "'Patrick Hand', cursive",
+  KALAM: "'Kalam', cursive",
+  INDIE_FLOWER: "'Indie Flower', cursive",
+  PACIFICO: "'Pacifico', cursive",
+  SHADOWS_INTO_LIGHT: "'Shadows Into Light', cursive",
+
+  // Modern Sans-Serif
+  INTER: "'Inter', sans-serif",
+  POPPINS: "'Poppins', sans-serif",
+  MONTSERRAT: "'Montserrat', sans-serif",
+  ROBOTO: "'Roboto', sans-serif",
+  OPEN_SANS: "'Open Sans', sans-serif",
+  OSWALD: "'Oswald', sans-serif",
+
+  // Serif & Editorial
+  PLAYFAIR: "'Playfair Display', Georgia, serif",
+  LORA: "'Lora', Georgia, serif",
+  MERRIWEATHER: "'Merriweather', serif",
+  GEORGIA: "Georgia, 'Times New Roman', serif",
+
+  // Monospace & Code
+  JETBRAINS_MONO: "'JetBrains Mono', monospace",
+  FIRA_CODE: "'Fira Code', monospace",
+  SPACE_MONO: "'Space Mono', monospace",
+
+  // Legacy aliases
   HAND_DRAWN: "'Caveat', 'Patrick Hand', cursive",
   NORMAL: "'Inter', sans-serif",
   SERIF: "Georgia, 'Times New Roman', serif",
   CODE: "'JetBrains Mono', monospace",
 };
+
+export const FONT_FAMILY_LIST = [
+  // Handwritten
+  { id: FONT_FAMILIES.CAVEAT, label: "Caveat", category: "Handwritten", fontCss: "'Caveat', cursive" },
+  { id: FONT_FAMILIES.ARCHITECT, label: "Architects Daughter", category: "Handwritten", fontCss: "'Architects Daughter', cursive" },
+  { id: FONT_FAMILIES.PATRICK_HAND, label: "Patrick Hand", category: "Handwritten", fontCss: "'Patrick Hand', cursive" },
+  { id: FONT_FAMILIES.KALAM, label: "Kalam (Marker)", category: "Handwritten", fontCss: "'Kalam', cursive" },
+  { id: FONT_FAMILIES.INDIE_FLOWER, label: "Indie Flower", category: "Handwritten", fontCss: "'Indie Flower', cursive" },
+  { id: FONT_FAMILIES.PACIFICO, label: "Pacifico (Brush)", category: "Handwritten", fontCss: "'Pacifico', cursive" },
+  { id: FONT_FAMILIES.SHADOWS_INTO_LIGHT, label: "Shadows Into Light", category: "Handwritten", fontCss: "'Shadows Into Light', cursive" },
+
+  // Sans-Serif
+  { id: FONT_FAMILIES.INTER, label: "Inter (Modern)", category: "Sans-Serif", fontCss: "'Inter', sans-serif" },
+  { id: FONT_FAMILIES.POPPINS, label: "Poppins (Clean)", category: "Sans-Serif", fontCss: "'Poppins', sans-serif" },
+  { id: FONT_FAMILIES.MONTSERRAT, label: "Montserrat", category: "Sans-Serif", fontCss: "'Montserrat', sans-serif" },
+  { id: FONT_FAMILIES.ROBOTO, label: "Roboto", category: "Sans-Serif", fontCss: "'Roboto', sans-serif" },
+  { id: FONT_FAMILIES.OPEN_SANS, label: "Open Sans", category: "Sans-Serif", fontCss: "'Open Sans', sans-serif" },
+  { id: FONT_FAMILIES.OSWALD, label: "Oswald (Bold)", category: "Sans-Serif", fontCss: "'Oswald', sans-serif" },
+
+  // Serif
+  { id: FONT_FAMILIES.PLAYFAIR, label: "Playfair Display", category: "Serif", fontCss: "'Playfair Display', serif" },
+  { id: FONT_FAMILIES.LORA, label: "Lora (Book)", category: "Serif", fontCss: "'Lora', serif" },
+  { id: FONT_FAMILIES.MERRIWEATHER, label: "Merriweather", category: "Serif", fontCss: "'Merriweather', serif" },
+  { id: FONT_FAMILIES.GEORGIA, label: "Georgia", category: "Serif", fontCss: "Georgia, serif" },
+
+  // Monospace
+  { id: FONT_FAMILIES.JETBRAINS_MONO, label: "JetBrains Mono", category: "Monospace", fontCss: "'JetBrains Mono', monospace" },
+  { id: FONT_FAMILIES.FIRA_CODE, label: "Fira Code", category: "Monospace", fontCss: "'Fira Code', monospace" },
+  { id: FONT_FAMILIES.SPACE_MONO, label: "Space Mono", category: "Monospace", fontCss: "'Space Mono', monospace" },
+];
 
 export const FONT_SIZES = {
   SMALL: 16,

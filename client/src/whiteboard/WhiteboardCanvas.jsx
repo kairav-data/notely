@@ -1394,7 +1394,7 @@ export default function WhiteboardCanvas({
 
           if (el.type === "text") {
             const isEditing = editingTextId === el.id;
-            const isCode = el.fontFamily === "'JetBrains Mono', monospace";
+            const isCode = Boolean(el.fontFamily && (el.fontFamily.includes("JetBrains Mono") || el.fontFamily.includes("Fira Code") || el.fontFamily.includes("Space Mono")));
             if (isCode) {
               return (
                 <foreignObject

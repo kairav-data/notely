@@ -42,19 +42,19 @@ export default function WhiteboardToolbar({
   const [showMenu, setShowMenu] = useState(false);
 
   const toolButtons = [
-    { id: TOOLS.HAND, icon: Hand, label: "Hand (Pan)" },
-    { id: TOOLS.SELECTION, icon: MousePointer2, label: "Selection" },
-    { id: TOOLS.RECTANGLE, icon: Square, label: "Rectangle" },
-    { id: TOOLS.DIAMOND, icon: Diamond, label: "Diamond" },
-    { id: TOOLS.ELLIPSE, icon: Circle, label: "Ellipse" },
-    { id: TOOLS.ARROW, icon: ArrowRight, label: "Arrow" },
-    { id: TOOLS.LINE, icon: Minus, label: "Line" },
-    { id: TOOLS.PEN, icon: Pencil, label: "Draw" },
-    { id: TOOLS.TEXT, icon: Type, label: "Text" },
-    { id: TOOLS.IMAGE, icon: ImageIcon, label: "Insert Image" },
-    { id: "library", icon: Boxes, label: "Shape Library (Pre-designed Shapes)" },
-    { id: TOOLS.ERASER, icon: Eraser, label: "Eraser" },
-    { id: TOOLS.LASER, icon: Sparkles, label: "Laser Pointer" },
+    { id: TOOLS.HAND, icon: Hand, label: "Hand / Pan (H or Space)" },
+    { id: TOOLS.SELECTION, icon: MousePointer2, label: "Selection (V or 1)" },
+    { id: TOOLS.RECTANGLE, icon: Square, label: "Rectangle (R or 2)" },
+    { id: TOOLS.DIAMOND, icon: Diamond, label: "Diamond (D or 3)" },
+    { id: TOOLS.ELLIPSE, icon: Circle, label: "Ellipse (O or 4)" },
+    { id: TOOLS.ARROW, icon: ArrowRight, label: "Arrow (A or 5)" },
+    { id: TOOLS.LINE, icon: Minus, label: "Line (L or 6)" },
+    { id: TOOLS.PEN, icon: Pencil, label: "Draw (P or 7)" },
+    { id: TOOLS.TEXT, icon: Type, label: "Text (T or 8)" },
+    { id: TOOLS.IMAGE, icon: ImageIcon, label: "Insert Image (9)" },
+    { id: "library", icon: Boxes, label: "Shape Library (Pre-designed Stencils)" },
+    { id: TOOLS.ERASER, icon: Eraser, label: "Eraser (E or 0)" },
+    { id: TOOLS.LASER, icon: Sparkles, label: "Laser Pointer (K)" },
   ];
 
   const handleToolClick = (t) => {

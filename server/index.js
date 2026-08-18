@@ -61,9 +61,13 @@ const emptyDoc = () => ({
 const publicUser = (user) => ({
   id: user._id.toString(),
   email: user.email,
-  firstName: user.firstName,
-  lastName: user.lastName,
+  firstName: user.firstName || "",
+  lastName: user.lastName || "",
+  phone: user.phone || "",
+  company: user.company || "",
+  jobTitle: user.jobTitle || "",
   createdAt: user.createdAt,
+  updatedAt: user.updatedAt || user.createdAt,
 });
 
 const hashPassword = async (password) => {
@@ -126,7 +130,7 @@ const profileDetails = (body) => {
   const jobTitle = text(body?.jobTitle, 120);
   if (firstName.length < 2) return { error: "Enter your first name." };
   if (lastName.length < 2) return { error: "Enter your last name." };
-  if (!/^\+?[0-9()\-\s]{7,30}$/.test(phone)) return { error: "Enter a valid phone number." };
+  if (phone && !/^\+?[0-9()\-\s]{7,30}$/.test(phone)) return { error: "Enter a valid phone number." };
   return { firstName, lastName, phone, company, jobTitle };
 };
 
@@ -163,7 +167,31 @@ app.post("/api/auth/login", async (req, res) => {
   res.json({ user: publicUser(user), token: signToken(user) });
 });
 
-app.get("/api/auth/me", requireAuth, (req, res) => res.json({ user: publicUser(req.user) }));
+app.get("/api/auth/me", requireAuth, async (req, res) => {
+  const notesCount = await notes.countDocuments({ ownerId: req.user._id });
+  res.json({ user: { ...publicUser(req.user), notesCount } });
+});
+
+app.put("/api/auth/profile", requireAuth, async (req, res) => {
+  const profile = profileDetails(req.body);
+  if (profile.error) return res.status(400).json({ error: profile.error });
+  const set = {
+    firstName: profile.firstName,
+    lastName: profile.lastName,
+    phone: profile.phone,
+    company: profile.company,
+    jobTitle: profile.jobTitle,
+    updatedAt: new Date(),
+  };
+  const result = await users.findOneAndUpdate(
+    { _id: req.user._id },
+    { $set: set },
+    { returnDocument: "after" }
+  );
+  if (!result) return res.status(404).json({ error: "User not found." });
+  const notesCount = await notes.countDocuments({ ownerId: req.user._id });
+  res.json({ user: { ...publicUser(result), notesCount } });
+});
 
 // List notes (metadata only — no heavy content).
 app.get("/api/notes", requireAuth, async (req, res) => {
