@@ -230,9 +230,14 @@ export default function ArrowToolPanel({ currentStyle, onStyleChange }) {
 
       {/* ── Arrowheads ────────────────────────────────── */}
       <div className="wb-atp-section">
-          <label className="wb-atp-label">Arrowheads</label>
+        <label className="wb-atp-label">Arrowheads</label>
+
+        {/* Start arrowhead row */}
+        <div className="wb-atp-arrowhead-group">
+          <span className="wb-atp-arrowhead-side-label">Start</span>
           <div className="wb-atp-arrowheads-row">
-            {/* Start — none */}
+
+            {/* None */}
             <button
               type="button"
               className={`wb-atp-btn wb-atp-arrowhead-btn ${!style.startArrowhead ? "is-active" : ""}`}
@@ -240,25 +245,140 @@ export default function ArrowToolPanel({ currentStyle, onStyleChange }) {
               title="No start arrowhead"
             >
               <svg width="28" height="14" viewBox="0 0 28 14" fill="none">
-                <line x1="4" y1="10" x2="4" y2="4" stroke="currentColor" strokeWidth="1.5"/>
-                <line x1="4" y1="7" x2="24" y2="7" stroke="currentColor" strokeWidth="1.5" strokeDasharray="3 2"/>
-                <text x="2" y="13" fontSize="7" fill="currentColor" fontFamily="monospace">×</text>
+                <line x1="6" y1="7" x2="22" y2="7" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+                <line x1="4" y1="3" x2="10" y2="11" stroke="currentColor" strokeWidth="1.2" opacity="0.4"/>
+                <line x1="10" y1="3" x2="4" y2="11" stroke="currentColor" strokeWidth="1.2" opacity="0.4"/>
               </svg>
             </button>
 
-            {/* End — arrow */}
+            {/* Arrow (open) */}
+            <button
+              type="button"
+              className={`wb-atp-btn wb-atp-arrowhead-btn ${style.startArrowhead === "arrow" ? "is-active" : ""}`}
+              onClick={() => update({ startArrowhead: "arrow" })}
+              title="Open arrow start"
+            >
+              <svg width="28" height="14" viewBox="0 0 28 14" fill="none">
+                <line x1="6" y1="7" x2="22" y2="7" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+                <polyline points="11,3 5,7 11,11" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" fill="none"/>
+              </svg>
+            </button>
+
+            {/* Triangle (filled) */}
+            <button
+              type="button"
+              className={`wb-atp-btn wb-atp-arrowhead-btn ${style.startArrowhead === "triangle" ? "is-active" : ""}`}
+              onClick={() => update({ startArrowhead: "triangle" })}
+              title="Triangle start"
+            >
+              <svg width="28" height="14" viewBox="0 0 28 14" fill="none">
+                <line x1="10" y1="7" x2="22" y2="7" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+                <polygon points="10,7 16,3 16,11" fill="currentColor"/>
+              </svg>
+            </button>
+
+            {/* Dot */}
+            <button
+              type="button"
+              className={`wb-atp-btn wb-atp-arrowhead-btn ${style.startArrowhead === "dot" ? "is-active" : ""}`}
+              onClick={() => update({ startArrowhead: "dot" })}
+              title="Dot start"
+            >
+              <svg width="28" height="14" viewBox="0 0 28 14" fill="none">
+                <line x1="10" y1="7" x2="22" y2="7" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+                <circle cx="7" cy="7" r="3.5" fill="currentColor"/>
+              </svg>
+            </button>
+
+            {/* Bar */}
+            <button
+              type="button"
+              className={`wb-atp-btn wb-atp-arrowhead-btn ${style.startArrowhead === "bar" ? "is-active" : ""}`}
+              onClick={() => update({ startArrowhead: "bar" })}
+              title="Bar start"
+            >
+              <svg width="28" height="14" viewBox="0 0 28 14" fill="none">
+                <line x1="7" y1="7" x2="22" y2="7" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+                <line x1="7" y1="2" x2="7" y2="12" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
+              </svg>
+            </button>
+
+          </div>
+        </div>
+
+        {/* End arrowhead row */}
+        <div className="wb-atp-arrowhead-group">
+          <span className="wb-atp-arrowhead-side-label">End</span>
+          <div className="wb-atp-arrowheads-row">
+
+            {/* None */}
+            <button
+              type="button"
+              className={`wb-atp-btn wb-atp-arrowhead-btn ${!style.endArrowhead ? "is-active" : ""}`}
+              onClick={() => update({ endArrowhead: null })}
+              title="No end arrowhead"
+            >
+              <svg width="28" height="14" viewBox="0 0 28 14" fill="none">
+                <line x1="6" y1="7" x2="22" y2="7" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+                <line x1="18" y1="3" x2="24" y2="11" stroke="currentColor" strokeWidth="1.2" opacity="0.4"/>
+                <line x1="24" y1="3" x2="18" y2="11" stroke="currentColor" strokeWidth="1.2" opacity="0.4"/>
+              </svg>
+            </button>
+
+            {/* Arrow (open) */}
             <button
               type="button"
               className={`wb-atp-btn wb-atp-arrowhead-btn ${style.endArrowhead === "arrow" ? "is-active" : ""}`}
               onClick={() => update({ endArrowhead: "arrow" })}
-              title="Arrow end"
+              title="Open arrow end"
             >
               <svg width="28" height="14" viewBox="0 0 28 14" fill="none">
-                <line x1="4" y1="7" x2="22" y2="7" stroke="currentColor" strokeWidth="1.5"/>
+                <line x1="6" y1="7" x2="22" y2="7" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
                 <polyline points="17,3 23,7 17,11" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" fill="none"/>
               </svg>
             </button>
+
+            {/* Triangle (filled) */}
+            <button
+              type="button"
+              className={`wb-atp-btn wb-atp-arrowhead-btn ${style.endArrowhead === "triangle" ? "is-active" : ""}`}
+              onClick={() => update({ endArrowhead: "triangle" })}
+              title="Triangle end"
+            >
+              <svg width="28" height="14" viewBox="0 0 28 14" fill="none">
+                <line x1="6" y1="7" x2="18" y2="7" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+                <polygon points="18,7 12,3 12,11" fill="currentColor"/>
+              </svg>
+            </button>
+
+            {/* Dot */}
+            <button
+              type="button"
+              className={`wb-atp-btn wb-atp-arrowhead-btn ${style.endArrowhead === "dot" ? "is-active" : ""}`}
+              onClick={() => update({ endArrowhead: "dot" })}
+              title="Dot end"
+            >
+              <svg width="28" height="14" viewBox="0 0 28 14" fill="none">
+                <line x1="6" y1="7" x2="18" y2="7" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+                <circle cx="21" cy="7" r="3.5" fill="currentColor"/>
+              </svg>
+            </button>
+
+            {/* Bar */}
+            <button
+              type="button"
+              className={`wb-atp-btn wb-atp-arrowhead-btn ${style.endArrowhead === "bar" ? "is-active" : ""}`}
+              onClick={() => update({ endArrowhead: "bar" })}
+              title="Bar end"
+            >
+              <svg width="28" height="14" viewBox="0 0 28 14" fill="none">
+                <line x1="6" y1="7" x2="21" y2="7" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+                <line x1="21" y1="2" x2="21" y2="12" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
+              </svg>
+            </button>
+
           </div>
+        </div>
       </div>
 
 

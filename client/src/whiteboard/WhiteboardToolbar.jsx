@@ -22,6 +22,7 @@ import {
   Sun,
   Moon,
   RotateCcw,
+  Boxes,
 } from "lucide-react";
 import { TOOLS } from "./types.js";
 
@@ -32,6 +33,7 @@ export default function WhiteboardToolbar({
   setIsLocked,
   onExport,
   onOpenShortcuts,
+  onOpenLibrary,
   onImageUpload,
   onClearCanvas,
   theme,
@@ -50,11 +52,16 @@ export default function WhiteboardToolbar({
     { id: TOOLS.PEN, icon: Pencil, label: "Draw" },
     { id: TOOLS.TEXT, icon: Type, label: "Text" },
     { id: TOOLS.IMAGE, icon: ImageIcon, label: "Insert Image" },
+    { id: "library", icon: Boxes, label: "Shape Library (Pre-designed Shapes)" },
     { id: TOOLS.ERASER, icon: Eraser, label: "Eraser" },
     { id: TOOLS.LASER, icon: Sparkles, label: "Laser Pointer" },
   ];
 
   const handleToolClick = (t) => {
+    if (t === "library") {
+      onOpenLibrary?.();
+      return;
+    }
     if (t === TOOLS.IMAGE) {
       const input = document.createElement("input");
       input.type = "file";
@@ -96,6 +103,13 @@ export default function WhiteboardToolbar({
               onClick={() => { setShowMenu(false); onExport(); }}
             >
               <Download size={16} /> Export canvas…
+            </button>
+            <button
+              type="button"
+              className="wb-dropdown-item"
+              onClick={() => { setShowMenu(false); onOpenLibrary?.(); }}
+            >
+              <Boxes size={16} /> Shape library…
             </button>
             <button
               type="button"

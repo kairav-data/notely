@@ -1,5 +1,5 @@
 import rough from "roughjs/bin/rough";
-import { getElbowArrowPoints } from "./geometry.js";
+import { getElbowArrowPoints, getCurvedArrowControlPoint } from "./geometry.js";
 
 const generator = rough.generator();
 
@@ -10,7 +10,10 @@ const generator = rough.generator();
 function drawableToPaths(drawable) {
   if (!drawable || !drawable.sets) return [];
   const paths = [];
-  const { stroke, strokeWidth, fill } = drawable.options;
+  const { stroke, strokeWidth, fill, strokeLineDash } = drawable.options || {};
+  const strokeDasharray = Array.isArray(strokeLineDash) && strokeLineDash.length > 0
+    ? strokeLineDash.join(" ")
+    : undefined;
 
   for (const set of drawable.sets) {
     let d = "";
@@ -52,6 +55,7 @@ function drawableToPaths(drawable) {
         stroke: stroke || "#1e1e1e",
         strokeWidth: strokeWidth || 2,
         fill: "none",
+        strokeDasharray,
       });
     }
   }
@@ -140,67 +144,100 @@ function getRoundedElbowPath(points, radius = 14) {
   return d;
 }
 
-export function renderArrowheads(el, fromX, fromY, toX, toY, options) {
+/**
+ * Renders arrowhead path objects for both ends of an arrow segment.
+ *
+ * End arrowhead   – placed at (toX, toY), direction determined by (fromX,fromY)→(toX,toY).
+ * Start arrowhead – placed at (startX, startY), direction determined by (startX,startY)→(startNextX,startNextY).
+ *
+ * For straight arrows startX/startY/startNextX/startNextY are the same as
+ * fromX/fromY/toX/toY so no extra args are needed.  Curved and elbow arrows
+ * must pass the actual first point and the next waypoint so the head lands at
+ * the true start of the path rather than at the tangent-reference point.
+ */
+export function renderArrowheads(
+  el,
+  fromX, fromY,         // tangent reference for END arrowhead direction
+  toX, toY,             // position of END arrowhead
+  options,
+  startX, startY,       // position of START arrowhead  (default: fromX, fromY)
+  startNextX, startNextY // next point along path from start (for direction) (default: toX, toY)
+) {
+  // Resolve defaults so straight-arrow callers need no extra args
+  const sX  = startX     ?? fromX;
+  const sY  = startY     ?? fromY;
+  const snX = startNextX ?? toX;
+  const snY = startNextY ?? toY;
+
   const heads = [];
-  const angle = Math.atan2(toY - fromY, toX - fromX);
-  const sw = el.strokeWidth || 2.5;
-  const size = 10 + sw * 2;
+  // Angle of the line at the END (fromX→toX direction)
+  const endAngle   = Math.atan2(toY - fromY, toX - fromX);
+  // Angle of the line at the START, pointing outward (away from the path)
+  const startAngle = Math.atan2(sY - snY, sX - snX); // reversed: from next back to start
+
+  const sw     = el.strokeWidth || 2.5;
+  const size   = 10 + sw * 2;
   const stroke = el.strokeColor || "#1e1e1e";
 
-  function arrowPath(x2, y2, ang) {
+  function wingPoints(x, y, ang) {
     const a1 = ang - Math.PI / 6;
     const a2 = ang + Math.PI / 6;
-    const p1x = x2 - size * Math.cos(a1);
-    const p1y = y2 - size * Math.sin(a1);
-    const p2x = x2 - size * Math.cos(a2);
-    const p2y = y2 - size * Math.sin(a2);
-    return { p1x, p1y, p2x, p2y };
+    return {
+      p1x: x - size * Math.cos(a1), p1y: y - size * Math.sin(a1),
+      p2x: x - size * Math.cos(a2), p2y: y - size * Math.sin(a2),
+    };
   }
 
-  if (el.endArrowhead === "arrow" || el.endArrowhead === "triangle") {
-    const { p1x, p1y, p2x, p2y } = arrowPath(toX, toY, angle);
-
-    if (el.endArrowhead === "triangle") {
-      // Filled solid triangle
-      heads.push({
-        d: `M ${toX} ${toY} L ${p1x} ${p1y} L ${p2x} ${p2y} Z`,
-        stroke,
-        strokeWidth: sw,
-        fill: stroke,
-      });
+  // ── Start arrowhead ────────────────────────────────────────────────────────
+  if (el.startArrowhead === "arrow" || el.startArrowhead === "triangle") {
+    const { p1x, p1y, p2x, p2y } = wingPoints(sX, sY, startAngle);
+    if (el.startArrowhead === "triangle") {
+      heads.push({ d: `M ${sX} ${sY} L ${p1x} ${p1y} L ${p2x} ${p2y} Z`, stroke, strokeWidth: sw, fill: stroke });
     } else {
-      // Open arrow "V" shape
-      heads.push({
-        d: `M ${p1x} ${p1y} L ${toX} ${toY} L ${p2x} ${p2y}`,
-        stroke,
-        strokeWidth: sw,
-        fill: "none",
-      });
+      heads.push({ d: `M ${p1x} ${p1y} L ${sX} ${sY} L ${p2x} ${p2y}`, stroke, strokeWidth: sw, fill: "none" });
     }
-  } else if (el.endArrowhead === "dot") {
-    const r = size / 2;
-    const cx = toX - r * Math.cos(angle);
-    const cy = toY - r * Math.sin(angle);
-    // SVG circle via arc path
+  } else if (el.startArrowhead === "dot") {
+    const r  = size / 2;
+    // Place dot so its outer edge touches the start point
+    const cx = sX + r * Math.cos(startAngle);
+    const cy = sY + r * Math.sin(startAngle);
     heads.push({
       d: `M ${cx - r},${cy} a ${r},${r} 0 1,0 ${r * 2},0 a ${r},${r} 0 1,0 ${-r * 2},0`,
-      stroke,
-      strokeWidth: sw * 0.5,
-      fill: stroke,
+      stroke, strokeWidth: sw * 0.5, fill: stroke,
+    });
+  } else if (el.startArrowhead === "bar") {
+    const half = size / 1.5;
+    const perp1 = startAngle + Math.PI / 2;
+    const perp2 = startAngle - Math.PI / 2;
+    heads.push({
+      d: `M ${sX + half * Math.cos(perp1)} ${sY + half * Math.sin(perp1)} L ${sX + half * Math.cos(perp2)} ${sY + half * Math.sin(perp2)}`,
+      stroke, strokeWidth: sw, fill: "none",
+    });
+  }
+
+  // ── End arrowhead ──────────────────────────────────────────────────────────
+  if (el.endArrowhead === "arrow" || el.endArrowhead === "triangle") {
+    const { p1x, p1y, p2x, p2y } = wingPoints(toX, toY, endAngle);
+    if (el.endArrowhead === "triangle") {
+      heads.push({ d: `M ${toX} ${toY} L ${p1x} ${p1y} L ${p2x} ${p2y} Z`, stroke, strokeWidth: sw, fill: stroke });
+    } else {
+      heads.push({ d: `M ${p1x} ${p1y} L ${toX} ${toY} L ${p2x} ${p2y}`, stroke, strokeWidth: sw, fill: "none" });
+    }
+  } else if (el.endArrowhead === "dot") {
+    const r  = size / 2;
+    const cx = toX - r * Math.cos(endAngle);
+    const cy = toY - r * Math.sin(endAngle);
+    heads.push({
+      d: `M ${cx - r},${cy} a ${r},${r} 0 1,0 ${r * 2},0 a ${r},${r} 0 1,0 ${-r * 2},0`,
+      stroke, strokeWidth: sw * 0.5, fill: stroke,
     });
   } else if (el.endArrowhead === "bar") {
-    const a1 = angle - Math.PI / 2;
-    const a2 = angle + Math.PI / 2;
     const half = size / 1.5;
-    const b1x = toX + half * Math.cos(a1);
-    const b1y = toY + half * Math.sin(a1);
-    const b2x = toX + half * Math.cos(a2);
-    const b2y = toY + half * Math.sin(a2);
+    const perp1 = endAngle + Math.PI / 2;
+    const perp2 = endAngle - Math.PI / 2;
     heads.push({
-      d: `M ${b1x} ${b1y} L ${b2x} ${b2y}`,
-      stroke,
-      strokeWidth: sw,
-      fill: "none",
+      d: `M ${toX + half * Math.cos(perp1)} ${toY + half * Math.sin(perp1)} L ${toX + half * Math.cos(perp2)} ${toY + half * Math.sin(perp2)}`,
+      stroke, strokeWidth: sw, fill: "none",
     });
   }
 
@@ -274,18 +311,15 @@ export function getElementPaths(el) {
       const arrowType = el.arrowType || "straight";
 
       if (arrowType === "curved") {
-        // Cubic bezier: control points hug x1 and x2 so it naturally
-        // "hooks" — like the reference image curve (starts going down, then sweeps right).
-        // CP1 is directly below start, CP2 is directly left of end.
-        const cp1x = x1;
-        const cp1y = y2;
-        const cp2x = x2;
-        const cp2y = y2;
-        const d = `M ${x1} ${y1} C ${cp1x} ${cp1y}, ${cp2x} ${cp2y}, ${x2} ${y2}`;
+        const { cx, cy } = getCurvedArrowControlPoint(el);
+        const d = `M ${x1} ${y1} Q ${cx} ${cy} ${x2} ${y2}`;
         const drawable = generator.path(d, { ...options, fill: "none" });
         const linePaths = drawableToPaths(drawable);
-        // Tangent at end (t=1) for cubic bezier: direction from cp2 to end
-        const headPaths = renderArrowheads(el, cp2x, cp2y, x2, y2, options);
+        const headPaths = renderArrowheads(
+          el,
+          cx, cy, x2, y2, options,
+          x1, y1, cx, cy
+        );
         return [...linePaths, ...headPaths];
       }
 
@@ -296,11 +330,16 @@ export function getElementPaths(el) {
         const linePaths = drawableToPaths(drawable);
         const previous = points[points.length - 2];
         const end = points[points.length - 1];
-        const headPaths = renderArrowheads(el, previous.x, previous.y, end.x, end.y, options);
+        // End tangent: last segment direction
+        // Start: actual first point, direction toward second point
+        const headPaths = renderArrowheads(
+          el, previous.x, previous.y, end.x, end.y, options,
+          points[0].x, points[0].y, points[1].x, points[1].y
+        );
         return [...linePaths, ...headPaths];
       }
 
-      // Straight (default)
+      // Straight (default) — fromX/toX are the actual endpoints, no extra args needed
       const drawable = generator.line(x1, y1, x2, y2, options);
       const linePaths = drawableToPaths(drawable);
       const headPaths = renderArrowheads(el, x1, y1, x2, y2, options);

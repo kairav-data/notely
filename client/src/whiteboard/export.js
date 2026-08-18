@@ -1,4 +1,4 @@
-import { getCombinedBounds, getElementBounds } from "./geometry.js";
+import { getCombinedBounds, getElementBounds, getLabelPosition, getNumericFontSize } from "./geometry.js";
 import { getElementPaths } from "./renderer.js";
 
 /**
@@ -30,7 +30,12 @@ export function generateSvgString(elements, options = {}) {
 
   for (const el of elements) {
     const opacity = (el.opacity ?? 100) / 100;
-    body += `<g opacity="${opacity}">\n`;
+    const b = getElementBounds(el);
+    const cx = b.x + b.width / 2;
+    const cy = b.y + b.height / 2;
+    const deg = el.angle ? (el.angle * 180) / Math.PI : 0;
+    const rotAttr = deg ? ` transform="rotate(${deg} ${cx} ${cy})"` : "";
+    body += `<g opacity="${opacity}"${rotAttr}>\n`;
 
     if (el.type === "text") {
       const b = getElementBounds(el);
@@ -51,7 +56,25 @@ export function generateSvgString(elements, options = {}) {
     } else {
       const paths = getElementPaths(el);
       for (const p of paths) {
-        body += `<path d="${p.d}" stroke="${p.stroke || "none"}" stroke-width="${p.strokeWidth || 1}" fill="${p.fill || "none"}" stroke-linecap="round" stroke-linejoin="round"/>\n`;
+        const dashAttr = p.strokeDasharray ? ` stroke-dasharray="${p.strokeDasharray}"` : "";
+        body += `<path d="${p.d}" stroke="${p.stroke || "none"}" stroke-width="${p.strokeWidth || 1}" fill="${p.fill || "none"}"${dashAttr} stroke-linecap="round" stroke-linejoin="round"/>\n`;
+      }
+      if (el.text) {
+        const pos = getLabelPosition(el);
+        const lines = el.text.split("\n");
+        const fontSize = getNumericFontSize(el.fontSize);
+        const fontFamily = el.fontFamily || "'Caveat', cursive";
+        const isArrow = el.type === "arrow" || el.type === "line";
+        if (isArrow) {
+          const rectW = Math.max(...lines.map((l) => l.length)) * fontSize * 0.6 + 12;
+          const rectH = lines.length * fontSize * 1.2 + 8;
+          body += `<rect x="${pos.x - rectW / 2}" y="${pos.y - rectH / 2}" width="${rectW}" height="${rectH}" fill="${darkMode ? "#121212" : "#ffffff"}" rx="4" opacity="0.92"/>\n`;
+        }
+        body += `<text x="${pos.x}" y="${pos.y}" font-family="${fontFamily}" font-size="${fontSize}px" fill="${el.strokeColor || '#1e1e1e'}" text-anchor="middle" dominant-baseline="central">\n`;
+        lines.forEach((line, idx) => {
+          body += `<tspan x="${pos.x}" dy="${idx === 0 ? `-${(lines.length - 1) * fontSize * 0.6}px` : `${fontSize * 1.2}px`}">${escapeXml(line)}</tspan>\n`;
+        });
+        body += `</text>\n`;
       }
     }
 

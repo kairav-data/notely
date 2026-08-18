@@ -1,4 +1,4 @@
-import { Plus, Minus, Undo2, Redo2, Grid, Magnet, Compass } from "lucide-react";
+import { Plus, Minus, Undo2, Redo2, Grid, Magnet, Compass, Link2 } from "lucide-react";
 
 export default function ZoomControls({
   zoom,
@@ -15,6 +15,8 @@ export default function ZoomControls({
   onToggleSnap,
   showMinimap,
   onToggleMinimap,
+  bindElements = true,
+  onToggleBinding,
 }) {
   const percent = Math.round(zoom * 100);
 
@@ -93,6 +95,15 @@ export default function ZoomControls({
           title="Snap to Grid"
         >
           <Magnet size={15} />
+        </button>
+
+        <button
+          type="button"
+          className={`wb-control-btn ${bindElements ? "is-active" : ""}`}
+          onClick={onToggleBinding}
+          title="Bind & Connect Shapes (Arrow Snapping)"
+        >
+          <Link2 size={15} />
         </button>
 
         <button

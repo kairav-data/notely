@@ -61,6 +61,7 @@ export default function StylePanel({
   const hasLineOrArrow = activeTypes.has("line") || activeTypes.has("arrow");
   const hasText = activeTypes.has("text");
   const isTextOnly = hasText && activeTypes.size === 1;
+  const showTypography = hasText || hasShape || hasLineOrArrow || isToolDefaults;
 
   const style = isSingle ? { ...currentStyle, ...selectedElements[0] } : currentStyle;
 
@@ -337,31 +338,136 @@ export default function StylePanel({
       {/* Arrowhead Styles */}
       {hasLineOrArrow && (
         <div className="wb-style-section">
-          <label className="wb-style-label">Arrowhead</label>
-          <div className="wb-btn-group">
-            {[
-              { id: null, label: "None" },
-              { id: "arrow", label: "Arrow" },
-              { id: "triangle", label: "Triangle" },
-              { id: "dot", label: "Dot" },
-              { id: "bar", label: "Bar" },
-            ].map((head) => (
-              <button
-                key={head.label}
-                type="button"
-                className={`wb-btn-option ${style.endArrowhead === head.id ? "is-active" : ""}`}
-                onClick={() => update({ endArrowhead: head.id })}
-                title={head.label}
-              >
-                {head.label}
-              </button>
-            ))}
-          </div>
+          <label className="wb-style-label">Arrowheads</label>
+
+          {[
+            { key: "startArrowhead", label: "Start" },
+            { key: "endArrowhead",   label: "End"   },
+          ].map(({ key, label }) => (
+            <div key={key} className="wb-atp-arrowhead-group" style={{ marginTop: 5 }}>
+              <span className="wb-atp-arrowhead-side-label">{label}</span>
+              <div className="wb-btn-group" style={{ flex: 1 }}>
+
+                {/* None */}
+                <button
+                  type="button"
+                  className={`wb-btn-option ${!style[key] ? "is-active" : ""}`}
+                  onClick={() => update({ [key]: null })}
+                  title={`No ${label.toLowerCase()} arrowhead`}
+                >
+                  <svg width="28" height="14" viewBox="0 0 28 14" fill="none">
+                    {key === "startArrowhead" ? (
+                      <>
+                        <line x1="6" y1="7" x2="22" y2="7" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+                        <line x1="4" y1="3" x2="10" y2="11" stroke="currentColor" strokeWidth="1.2" opacity="0.4"/>
+                        <line x1="10" y1="3" x2="4" y2="11" stroke="currentColor" strokeWidth="1.2" opacity="0.4"/>
+                      </>
+                    ) : (
+                      <>
+                        <line x1="6" y1="7" x2="22" y2="7" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+                        <line x1="18" y1="3" x2="24" y2="11" stroke="currentColor" strokeWidth="1.2" opacity="0.4"/>
+                        <line x1="24" y1="3" x2="18" y2="11" stroke="currentColor" strokeWidth="1.2" opacity="0.4"/>
+                      </>
+                    )}
+                  </svg>
+                </button>
+
+                {/* Arrow (open) */}
+                <button
+                  type="button"
+                  className={`wb-btn-option ${style[key] === "arrow" ? "is-active" : ""}`}
+                  onClick={() => update({ [key]: "arrow" })}
+                  title={`Open arrow ${label.toLowerCase()}`}
+                >
+                  <svg width="28" height="14" viewBox="0 0 28 14" fill="none">
+                    {key === "startArrowhead" ? (
+                      <>
+                        <line x1="6" y1="7" x2="22" y2="7" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+                        <polyline points="11,3 5,7 11,11" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" fill="none"/>
+                      </>
+                    ) : (
+                      <>
+                        <line x1="6" y1="7" x2="22" y2="7" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+                        <polyline points="17,3 23,7 17,11" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" fill="none"/>
+                      </>
+                    )}
+                  </svg>
+                </button>
+
+                {/* Triangle */}
+                <button
+                  type="button"
+                  className={`wb-btn-option ${style[key] === "triangle" ? "is-active" : ""}`}
+                  onClick={() => update({ [key]: "triangle" })}
+                  title={`Triangle ${label.toLowerCase()}`}
+                >
+                  <svg width="28" height="14" viewBox="0 0 28 14" fill="none">
+                    {key === "startArrowhead" ? (
+                      <>
+                        <line x1="10" y1="7" x2="22" y2="7" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+                        <polygon points="10,7 16,3 16,11" fill="currentColor"/>
+                      </>
+                    ) : (
+                      <>
+                        <line x1="6" y1="7" x2="18" y2="7" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+                        <polygon points="18,7 12,3 12,11" fill="currentColor"/>
+                      </>
+                    )}
+                  </svg>
+                </button>
+
+                {/* Dot */}
+                <button
+                  type="button"
+                  className={`wb-btn-option ${style[key] === "dot" ? "is-active" : ""}`}
+                  onClick={() => update({ [key]: "dot" })}
+                  title={`Dot ${label.toLowerCase()}`}
+                >
+                  <svg width="28" height="14" viewBox="0 0 28 14" fill="none">
+                    {key === "startArrowhead" ? (
+                      <>
+                        <line x1="10" y1="7" x2="22" y2="7" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+                        <circle cx="7" cy="7" r="3.5" fill="currentColor"/>
+                      </>
+                    ) : (
+                      <>
+                        <line x1="6" y1="7" x2="18" y2="7" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+                        <circle cx="21" cy="7" r="3.5" fill="currentColor"/>
+                      </>
+                    )}
+                  </svg>
+                </button>
+
+                {/* Bar */}
+                <button
+                  type="button"
+                  className={`wb-btn-option ${style[key] === "bar" ? "is-active" : ""}`}
+                  onClick={() => update({ [key]: "bar" })}
+                  title={`Bar ${label.toLowerCase()}`}
+                >
+                  <svg width="28" height="14" viewBox="0 0 28 14" fill="none">
+                    {key === "startArrowhead" ? (
+                      <>
+                        <line x1="7" y1="7" x2="22" y2="7" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+                        <line x1="7" y1="2" x2="7" y2="12" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
+                      </>
+                    ) : (
+                      <>
+                        <line x1="6" y1="7" x2="21" y2="7" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+                        <line x1="21" y1="2" x2="21" y2="12" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
+                      </>
+                    )}
+                  </svg>
+                </button>
+
+              </div>
+            </div>
+          ))}
         </div>
       )}
 
-      {/* Typography Controls (Text elements) */}
-      {hasText && (
+      {/* Typography Controls (Text, Shapes, Arrows) */}
+      {showTypography && (
         <>
           <div className="wb-style-section">
             <label className="wb-style-label">Font family</label>

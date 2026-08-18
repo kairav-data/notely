@@ -43,17 +43,31 @@ export default function App() {
       .then(async (list) => {
         setNotes(list);
         if (list.length) {
-          await openNote(list[0]._id);
-          return;
+          try {
+            await openNote(list[0]._id);
+            return;
+          } catch (e) {
+            console.error("Failed opening note:", e);
+          }
         }
 
-        // A whiteboard-only workspace still needs one persisted canvas.
-        const note = await api.create({ title: "Whiteboard" });
-        setNotes([{ _id: note._id, title: note.title, updatedAt: note.updatedAt }]);
-        setActiveId(note._id);
-        setActiveNote(note);
+        try {
+          const note = await api.create({ title: "Whiteboard" });
+          setNotes([{ _id: note._id, title: note.title, updatedAt: note.updatedAt }]);
+          setActiveId(note._id);
+          setActiveNote(note);
+        } catch (e) {
+          const fallback = { _id: "local-workspace", title: "Whiteboard", drawing: [] };
+          setActiveId(fallback._id);
+          setActiveNote(fallback);
+        }
       })
-      .catch((e) => setError(e.message));
+      .catch((e) => {
+        setError(e.message);
+        const fallback = { _id: "local-workspace", title: "Whiteboard", drawing: [] };
+        setActiveId(fallback._id);
+        setActiveNote(fallback);
+      });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user]);
 
@@ -74,6 +88,11 @@ export default function App() {
       setSaveState("idle");
     } catch (e) {
       setError(e.message);
+      if (!activeNote) {
+        const fallback = { _id: id, title: "Whiteboard", drawing: [] };
+        setActiveId(id);
+        setActiveNote(fallback);
+      }
     }
   };
 

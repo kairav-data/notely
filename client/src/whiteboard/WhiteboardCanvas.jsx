@@ -16,6 +16,14 @@ import {
   alignElements,
   distributeElements,
   translateElement,
+  getArrowHandles,
+  getCurvedArrowControlPoint,
+  rotatePoint,
+  getShapeAnchors,
+  findBestShapeBinding,
+  updateConnectedArrows,
+  getLabelPosition,
+  getNumericFontSize,
 } from "./geometry.js";
 import { getElementPaths } from "./renderer.js";
 import WhiteboardToolbar from "./WhiteboardToolbar.jsx";
@@ -25,6 +33,7 @@ import Minimap from "./Minimap.jsx";
 import ExportModal from "./ExportModal.jsx";
 import ShortcutsModal from "./ShortcutsModal.jsx";
 import ArrowToolPanel from "./ArrowToolPanel.jsx";
+import LibraryModal from "./LibraryModal.jsx";
 
 const GRID_SIZE = 20;
 
@@ -39,25 +48,40 @@ function getHighlightedCode(source, language) {
 
 function getElbowHandles(el) {
   const points = getElbowArrowPoints(el) || [];
-  // Hollow circles are the route's explicit endpoints and bends. They do not
-  // change the route until a user intentionally drags one of them.
-  const endpoints = points.map((point, index) => ({
-    id: `elbow-point-${index}`,
-    kind: "point",
-    index,
-    x: point.x,
-    y: point.y,
-  }));
-  const segmentHandles = points.slice(1).map((point, index) => {
-    const start = points[index];
-    return {
-      id: `elbow-segment-${index}`,
+  if (points.length < 2) return { points, endpoints: [], segmentHandles: [] };
+
+  // Only start and end points get hollow circles (matching Excalidraw)
+  const endpoints = [
+    {
+      id: `elbow-point-start`,
+      kind: "point",
+      index: 0,
+      x: points[0].x,
+      y: points[0].y,
+    },
+    {
+      id: `elbow-point-end`,
+      kind: "point",
+      index: points.length - 1,
+      x: points[points.length - 1].x,
+      y: points[points.length - 1].y,
+    },
+  ];
+
+  // Filled purple dots for each segment midpoint
+  const segmentHandles = [];
+  for (let i = 0; i < points.length - 1; i++) {
+    const start = points[i];
+    const end = points[i + 1];
+    segmentHandles.push({
+      id: `elbow-segment-${i}`,
       kind: "segment",
-      index,
-      x: (start.x + point.x) / 2,
-      y: (start.y + point.y) / 2,
-    };
-  });
+      index: i,
+      x: (start.x + end.x) / 2,
+      y: (start.y + end.y) / 2,
+    });
+  }
+
   return { points, endpoints, segmentHandles };
 }
 
@@ -95,9 +119,12 @@ export default function WhiteboardCanvas({
   // Active Tool & Lock
   const [tool, setTool] = useState(TOOLS.SELECTION);
   const [isLocked, setIsLocked] = useState(false);
+  const [bindElements, setBindElements] = useState(true);
+  const [bindingSnapIndicator, setBindingSnapIndicator] = useState(null);
 
   const selectTool = useCallback((nextTool) => {
     setTool(nextTool);
+    if (containerRef.current) containerRef.current.style.cursor = "";
     if (nextTool !== TOOLS.SELECTION) {
       setSelectedIds([]);
       setEditingTextId(null);
@@ -128,6 +155,7 @@ export default function WhiteboardCanvas({
   // Modals
   const [showExportModal, setShowExportModal] = useState(false);
   const [showShortcutsModal, setShowShortcutsModal] = useState(false);
+  const [showLibraryModal, setShowLibraryModal] = useState(false);
 
   // Sync elements changes to parent (debounced by upstream note saver)
   const updateElements = useCallback((nextElements, pushToHistory = true) => {
@@ -190,6 +218,12 @@ export default function WhiteboardCanvas({
     ? selectedElements[0]
     : null;
   const elbowHandles = selectedElbowArrow ? getElbowHandles(selectedElbowArrow) : null;
+  const selectedSingleArrowOrLine = selectedElements.length === 1
+    && (selectedElements[0].type === TOOLS.ARROW || selectedElements[0].type === TOOLS.LINE)
+    && selectedElements[0].arrowType !== "elbow"
+    ? selectedElements[0]
+    : null;
+  const arrowHandles = selectedSingleArrowOrLine ? getArrowHandles(selectedSingleArrowOrLine) : null;
   const showStylePanel = tool === TOOLS.SELECTION
     && action !== "drawing"
     && !draftElement
@@ -383,6 +417,44 @@ export default function WhiteboardCanvas({
     img.src = src;
   }, [currentStyle.opacity, elements, screenToCanvas, updateElements]);
 
+  // Insert Library Stencils / Shapes
+  const handleInsertLibraryElements = useCallback((newEls) => {
+    if (!newEls || newEls.length === 0) return;
+
+    const bounds = getCombinedBounds(newEls);
+    const stencilCenterX = bounds.minX + bounds.width / 2;
+    const stencilCenterY = bounds.minY + bounds.height / 2;
+
+    const containerWidth = containerRef.current?.clientWidth || 800;
+    const containerHeight = containerRef.current?.clientHeight || 600;
+    const viewCenterX = (containerWidth / 2 - pan.x) / zoom;
+    const viewCenterY = (containerHeight / 2 - pan.y) / zoom;
+
+    const offsetX = viewCenterX - stencilCenterX;
+    const offsetY = viewCenterY - stencilCenterY;
+
+    const idMap = new Map();
+    const created = newEls.map((el) => {
+      const freshId = generateId();
+      idMap.set(el.id, freshId);
+      return translateElement({ ...el, id: freshId }, offsetX, offsetY);
+    });
+
+    const remapped = created.map((el) => {
+      let item = { ...el };
+      if (item.startBinding && idMap.has(item.startBinding.elementId)) {
+        item.startBinding = { ...item.startBinding, elementId: idMap.get(item.startBinding.elementId) };
+      }
+      if (item.endBinding && idMap.has(item.endBinding.elementId)) {
+        item.endBinding = { ...item.endBinding, elementId: idMap.get(item.endBinding.elementId) };
+      }
+      return item;
+    });
+
+    updateElements([...elements, ...remapped]);
+    setSelectedIds(remapped.map((item) => item.id));
+  }, [elements, pan.x, pan.y, updateElements, zoom]);
+
   // Pointer Down handler
   const handlePointerDown = (e) => {
     if (e.button !== 0 && e.button !== 1) return;
@@ -423,6 +495,16 @@ export default function WhiteboardCanvas({
 
     // Selection tool: Check transform handles first
     if (tool === TOOLS.SELECTION) {
+      if (selectedSingleArrowOrLine && arrowHandles) {
+        const arrowHandle = hitTestHandle(arrowHandles, x, y, zoom, 10);
+        if (arrowHandle) {
+          setAction("editing-arrow-handle");
+          activeHandleRef.current = arrowHandle;
+          origElementsRef.current = [{ ...selectedSingleArrowOrLine }];
+          dragStartRef.current = { x, y };
+          return;
+        }
+      }
       if (selectedElbowArrow && elbowHandles) {
         const elbowHandle = hitTestHandle(
           [...elbowHandles.endpoints, ...elbowHandles.segmentHandles], x, y, zoom, 9
@@ -430,14 +512,40 @@ export default function WhiteboardCanvas({
         if (elbowHandle) {
           setAction(elbowHandle.kind === "point"
             ? "editing-elbow-point"
-            : "creating-elbow-detour");
+            : "editing-elbow-segment");
           activeHandleRef.current = elbowHandle;
           origElementsRef.current = [{ ...selectedElbowArrow, elbowPoints: elbowHandles.points }];
+          dragStartRef.current = { x, y };
           return;
         }
       }
-      const hitHandle = hitTestHandle(transformHandles, x, y, zoom);
+      const singleRot = selectedElements.length === 1 ? (selectedElements[0].angle || 0) : 0;
+      let targetX = x;
+      let targetY = y;
+      if (singleRot && selectionBounds) {
+        const cx = selectionBounds.minX + selectionBounds.width / 2;
+        const cy = selectionBounds.minY + selectionBounds.height / 2;
+        const unrot = rotatePoint(x, y, cx, cy, -singleRot);
+        targetX = unrot.x;
+        targetY = unrot.y;
+      }
+
+      const hitHandle = hitTestHandle(transformHandles, targetX, targetY, zoom, 12);
       if (hitHandle && selectedElements.length > 0) {
+        if (hitHandle.id === "rotation") {
+          setAction("rotating");
+          activeHandleRef.current = hitHandle.id;
+          const center = {
+            cx: selectionBounds.minX + selectionBounds.width / 2,
+            cy: selectionBounds.minY + selectionBounds.height / 2,
+          };
+          dragStartRef.current = {
+            ...center,
+            startAngle: Math.atan2(y - center.cy, x - center.cx),
+          };
+          origElementsRef.current = selectedElements.map((el) => ({ ...el }));
+          return;
+        }
         setAction("resizing");
         activeHandleRef.current = hitHandle.id;
         dragStartRef.current = { x, y, bounds: { ...selectionBounds } };
@@ -512,6 +620,14 @@ export default function WhiteboardCanvas({
     } else if (tool === TOOLS.LINE || tool === TOOLS.ARROW) {
       baseElement.x2 = snap(x);
       baseElement.y2 = snap(y);
+      if (bindElements) {
+        const startSnap = findBestShapeBinding(x, y, elements);
+        if (startSnap) {
+          baseElement.x = startSnap.x;
+          baseElement.y = startSnap.y;
+          baseElement.startBinding = { elementId: startSnap.elementId, anchorId: startSnap.anchorId };
+        }
+      }
     }
 
     setAction("drawing");
@@ -539,7 +655,68 @@ export default function WhiteboardCanvas({
 
   // Pointer Move handler
   const handlePointerMove = (e) => {
-    if (action === "none") return;
+    const { x, y } = screenToCanvas(e.clientX, e.clientY);
+
+    if (action === "none") {
+      if (tool === TOOLS.SELECTION) {
+        const singleRot = selectedElements.length === 1 ? (selectedElements[0].angle || 0) : 0;
+        let targetX = x;
+        let targetY = y;
+        if (singleRot && selectionBounds) {
+          const cx = selectionBounds.minX + selectionBounds.width / 2;
+          const cy = selectionBounds.minY + selectionBounds.height / 2;
+          const unrot = rotatePoint(x, y, cx, cy, -singleRot);
+          targetX = unrot.x;
+          targetY = unrot.y;
+        }
+
+        // 1. Check transform handles first (corners nw/ne/se/sw, edges n/s/e/w, rotation stem)
+        const hitHandle = hitTestHandle(transformHandles, targetX, targetY, zoom, 12);
+        if (hitHandle && selectedElements.length > 0) {
+          if (containerRef.current) {
+            containerRef.current.style.cursor = hitHandle.cursor;
+          }
+          return;
+        }
+
+        // 2. Check single arrow / elbow handles
+        if (selectedSingleArrowOrLine && arrowHandles) {
+          const arrowHandle = hitTestHandle(arrowHandles, x, y, zoom, 10);
+          if (arrowHandle) {
+            if (containerRef.current) {
+              containerRef.current.style.cursor = "grab";
+            }
+            return;
+          }
+        }
+        if (selectedElbowArrow && elbowHandles) {
+          const elbowHandle = hitTestHandle(
+            [...elbowHandles.endpoints, ...elbowHandles.segmentHandles], x, y, zoom, 9
+          );
+          if (elbowHandle) {
+            if (containerRef.current) {
+              containerRef.current.style.cursor = "grab";
+            }
+            return;
+          }
+        }
+
+        // 3. Check elements under cursor (for moving)
+        const hit = [...elements].reverse().find((el) => hitTestElement(el, x, y));
+        if (hit) {
+          if (containerRef.current) {
+            containerRef.current.style.cursor = "move";
+          }
+          return;
+        }
+
+        // 4. Reset cursor on empty canvas
+        if (containerRef.current) {
+          containerRef.current.style.cursor = "";
+        }
+      }
+      return;
+    }
 
     if (action === "panning") {
       const dx = e.clientX - dragStartRef.current.clientX;
@@ -550,8 +727,6 @@ export default function WhiteboardCanvas({
       });
       return;
     }
-
-    const { x, y } = screenToCanvas(e.clientX, e.clientY);
 
     if (action === "lasering") {
       setLaserPoints((prev) => [...prev, { x, y, timestamp: Date.now() }]);
@@ -582,18 +757,94 @@ export default function WhiteboardCanvas({
       return;
     }
 
+    if (action === "editing-arrow-handle") {
+      const handle = activeHandleRef.current;
+      const orig = origElementsRef.current[0];
+      const dx = snap(x - dragStartRef.current.x);
+      const dy = snap(y - dragStartRef.current.y);
+
+      let updated = { ...orig };
+      if (handle.kind === "start" || handle.kind === "end") {
+        let rawTargetX = handle.kind === "start" ? orig.x + dx : (orig.x2 ?? orig.x) + dx;
+        let rawTargetY = handle.kind === "start" ? orig.y + dy : (orig.y2 ?? orig.y) + dy;
+        let binding = null;
+
+        if (bindElements) {
+          const snapB = findBestShapeBinding(rawTargetX, rawTargetY, elements, orig.id);
+          if (snapB) {
+            rawTargetX = snapB.x;
+            rawTargetY = snapB.y;
+            binding = { elementId: snapB.elementId, anchorId: snapB.anchorId };
+            setBindingSnapIndicator(snapB);
+          } else {
+            setBindingSnapIndicator(null);
+          }
+        } else {
+          setBindingSnapIndicator(null);
+        }
+
+        if (handle.kind === "start") {
+          updated.x = rawTargetX;
+          updated.y = rawTargetY;
+          updated.startBinding = binding;
+        } else {
+          updated.x2 = rawTargetX;
+          updated.y2 = rawTargetY;
+          updated.endBinding = binding;
+        }
+        if (updated.arrowType === "elbow") delete updated.elbowPoints;
+      } else if (handle.kind === "curve") {
+        const origControl = getCurvedArrowControlPoint(orig);
+        updated.curveControl = {
+          x: snap(origControl.cx + dx),
+          y: snap(origControl.cy + dy),
+        };
+      }
+
+      setElements(elements.map((el) => (el.id === orig.id ? updated : el)));
+      return;
+    }
+
+    if (action === "rotating") {
+      const { cx, cy, startAngle } = dragStartRef.current;
+      const currentAngle = Math.atan2(y - cy, x - cx);
+      let diff = currentAngle - startAngle;
+
+      if (e.shiftKey) {
+        const step = Math.PI / 12; // 15 degree snapping
+        diff = Math.round(diff / step) * step;
+      }
+
+      const origMap = new Map(origElementsRef.current.map((el) => [el.id, el]));
+      const next = elements.map((el) => {
+        const orig = origMap.get(el.id);
+        if (orig && !orig.locked) {
+          return { ...orig, angle: (orig.angle || 0) + diff };
+        }
+        return el;
+      });
+      setElements(next);
+      if (containerRef.current) containerRef.current.style.cursor = "grabbing";
+      return;
+    }
+
     if (action === "moving") {
       const dx = snap(x - dragStartRef.current.x);
       const dy = snap(y - dragStartRef.current.y);
 
       const origMap = new Map(origElementsRef.current.map((el) => [el.id, el]));
-      const next = elements.map((el) => {
+      let next = elements.map((el) => {
         const orig = origMap.get(el.id);
         if (orig && !orig.locked) {
           return translateElement(orig, dx, dy);
         }
         return el;
       });
+
+      if (bindElements) {
+        next = updateConnectedArrows(next, origMap);
+      }
+
       setElements(next);
       return;
     }
@@ -666,44 +917,118 @@ export default function WhiteboardCanvas({
       return;
     }
 
-    if (action === "editing-elbow-point" || action === "creating-elbow-detour") {
+    if (action === "editing-elbow-point" || action === "editing-elbow-segment") {
       const original = origElementsRef.current[0];
       const handle = activeHandleRef.current;
       if (!original || !handle) return;
       const originalPoints = getElbowArrowPoints(original);
-      let elbowPoints;
-      if (action === "creating-elbow-detour") {
-        elbowPoints = createElbowDetour(originalPoints, handle.index, snap(x), snap(y));
-      } else {
-        elbowPoints = originalPoints.map((point) => ({ ...point }));
-        const pointIndex = handle.index;
-        const previous = elbowPoints[pointIndex - 1];
-        const next = elbowPoints[pointIndex + 1];
-        const moved = { x: snap(x), y: snap(y) };
-        // Keep the end segment orthogonal as an endpoint is repositioned.
-        if (pointIndex === 0 && next) {
-          if (Math.abs(next.x - moved.x) >= Math.abs(next.y - moved.y)) moved.y = next.y;
-          else moved.x = next.x;
-        } else if (pointIndex === elbowPoints.length - 1 && previous) {
-          if (Math.abs(moved.x - previous.x) >= Math.abs(moved.y - previous.y)) moved.y = previous.y;
-          else moved.x = previous.x;
-        } else if (previous && next) {
-          // A hollow bend handle adjusts the existing route only. It slides
-          // perpendicular to its incoming edge and carries that edge with it;
-          // it never adds another elbow. Use a filled midpoint handle to add
-          // a new elbow instead.
-          const incomingIsHorizontal = Math.abs(previous.y - elbowPoints[pointIndex].y)
-            <= Math.abs(previous.x - elbowPoints[pointIndex].x);
-          if (incomingIsHorizontal) {
-            moved.x = elbowPoints[pointIndex].x;
-            previous.y = moved.y;
+      let elbowPoints = originalPoints.map((point) => ({ ...point }));
+
+      if (action === "editing-elbow-segment") {
+        const segIdx = handle.index;
+        const p1 = originalPoints[segIdx];
+        const p2 = originalPoints[segIdx + 1];
+        if (p1 && p2) {
+          const isHoriz = Math.abs(p1.y - p2.y) <= Math.abs(p1.x - p2.x);
+          const dx = snap(x - dragStartRef.current.x);
+          const dy = snap(y - dragStartRef.current.y);
+
+          const isLastSegment = segIdx === originalPoints.length - 2;
+          const isFirstSegment = segIdx === 0;
+
+          if (isLastSegment) {
+            // Dragging the final segment leading to end point
+            if (isHoriz) {
+              const newY = p1.y + dy;
+              if (Math.abs(newY - p2.y) > 2) {
+                elbowPoints = [
+                  ...originalPoints.slice(0, segIdx),
+                  { x: p1.x, y: newY },
+                  { x: p2.x, y: newY },
+                  { ...p2 },
+                ];
+              } else {
+                elbowPoints[segIdx].y = newY;
+                elbowPoints[segIdx + 1].y = newY;
+              }
+            } else {
+              const newX = p1.x + dx;
+              if (Math.abs(newX - p2.x) > 2) {
+                elbowPoints = [
+                  ...originalPoints.slice(0, segIdx),
+                  { x: newX, y: p1.y },
+                  { x: newX, y: p2.y },
+                  { ...p2 },
+                ];
+              } else {
+                elbowPoints[segIdx].x = newX;
+                elbowPoints[segIdx + 1].x = newX;
+              }
+            }
+          } else if (isFirstSegment && originalPoints.length > 2) {
+            // Dragging the first segment leaving start point
+            if (isHoriz) {
+              const newY = p1.y + dy;
+              if (Math.abs(newY - p1.y) > 2) {
+                elbowPoints = [
+                  { ...p1 },
+                  { x: p1.x, y: newY },
+                  { x: p2.x, y: newY },
+                  ...originalPoints.slice(segIdx + 2),
+                ];
+              } else {
+                elbowPoints[segIdx].y = newY;
+                elbowPoints[segIdx + 1].y = newY;
+              }
+            } else {
+              const newX = p1.x + dx;
+              if (Math.abs(newX - p1.x) > 2) {
+                elbowPoints = [
+                  { ...p1 },
+                  { x: newX, y: p1.y },
+                  { x: newX, y: p2.y },
+                  ...originalPoints.slice(segIdx + 2),
+                ];
+              } else {
+                elbowPoints[segIdx].x = newX;
+                elbowPoints[segIdx + 1].x = newX;
+              }
+            }
           } else {
-            moved.y = elbowPoints[pointIndex].y;
-            previous.x = moved.x;
+            // Middle segment: translate segment orthogonally
+            if (isHoriz) {
+              elbowPoints[segIdx].y = p1.y + dy;
+              elbowPoints[segIdx + 1].y = p2.y + dy;
+            } else {
+              elbowPoints[segIdx].x = p1.x + dx;
+              elbowPoints[segIdx + 1].x = p2.x + dx;
+            }
           }
         }
-        elbowPoints[pointIndex] = moved;
+      } else {
+        const pointIndex = handle.index;
+        const target = originalPoints[pointIndex];
+        const previous = originalPoints[pointIndex - 1];
+        const next = originalPoints[pointIndex + 1];
+        const moved = { x: snap(x), y: snap(y) };
+
+        if (pointIndex === 0) {
+          elbowPoints[0] = moved;
+          if (next) {
+            const isHoriz = Math.abs(target.y - next.y) <= Math.abs(target.x - next.x);
+            if (isHoriz) elbowPoints[1].y = moved.y;
+            else elbowPoints[1].x = moved.x;
+          }
+        } else if (pointIndex === elbowPoints.length - 1) {
+          elbowPoints[elbowPoints.length - 1] = moved;
+          if (previous) {
+            const isHoriz = Math.abs(target.y - previous.y) <= Math.abs(target.x - previous.x);
+            if (isHoriz) elbowPoints[elbowPoints.length - 2].y = moved.y;
+            else elbowPoints[elbowPoints.length - 2].x = moved.x;
+          }
+        }
       }
+
       const first = elbowPoints[0];
       const last = elbowPoints[elbowPoints.length - 1];
       setElements(elements.map((el) => el.id === original.id
@@ -726,10 +1051,29 @@ export default function WhiteboardCanvas({
           points: [...draftElement.points, [relX, relY]],
         });
       } else if (draftElement.type === "line" || draftElement.type === "arrow") {
+        let finalX2 = curX;
+        let finalY2 = curY;
+        let endBinding = null;
+
+        if (bindElements) {
+          const endSnap = findBestShapeBinding(curX, curY, elements, draftElement.id);
+          if (endSnap) {
+            finalX2 = endSnap.x;
+            finalY2 = endSnap.y;
+            endBinding = { elementId: endSnap.elementId, anchorId: endSnap.anchorId };
+            setBindingSnapIndicator(endSnap);
+          } else {
+            setBindingSnapIndicator(null);
+          }
+        } else {
+          setBindingSnapIndicator(null);
+        }
+
         setDraftElement({
           ...draftElement,
-          x2: curX,
-          y2: curY,
+          x2: finalX2,
+          y2: finalY2,
+          endBinding,
         });
       } else {
         const width = curX - startX;
@@ -771,10 +1115,14 @@ export default function WhiteboardCanvas({
       if (!isLocked) {
         setTool(TOOLS.SELECTION);
       }
-    } else if (action === "moving" || action === "resizing" || action === "editing-elbow-point" || action === "creating-elbow-detour") {
+    } else if (action === "moving" || action === "resizing" || action === "editing-elbow-point" || action === "editing-elbow-segment" || action === "editing-arrow-handle") {
       updateElements(elements);
     }
 
+    if (containerRef.current) {
+      containerRef.current.style.cursor = "";
+    }
+    setBindingSnapIndicator(null);
     setAction("none");
     setMarquee(null);
   };
@@ -856,6 +1204,13 @@ export default function WhiteboardCanvas({
           e.preventDefault();
           handleDeleteSelected();
         }
+        return;
+      }
+
+      // Enter to edit text label on selected shape or arrow
+      if (e.key === "Enter" && selectedIds.length === 1) {
+        e.preventDefault();
+        setEditingTextId(selectedIds[0]);
         return;
       }
 
@@ -947,6 +1302,7 @@ export default function WhiteboardCanvas({
         setIsLocked={setIsLocked}
         onExport={() => setShowExportModal(true)}
         onOpenShortcuts={() => setShowShortcutsModal(true)}
+        onOpenLibrary={() => setShowLibraryModal(true)}
         onImageUpload={handleImageUpload}
         onClearCanvas={handleClearCanvas}
         theme={theme}
@@ -1030,9 +1386,13 @@ export default function WhiteboardCanvas({
         {elements.map((el) => {
           const isSelected = selectedIds.includes(el.id);
           const opacity = (el.opacity ?? 100) / 100;
+          const b = getElementBounds(el);
+          const cx = b.x + b.width / 2;
+          const cy = b.y + b.height / 2;
+          const rotDeg = el.angle ? (el.angle * 180) / Math.PI : 0;
+          const transform = rotDeg ? `rotate(${rotDeg} ${cx} ${cy})` : undefined;
 
           if (el.type === "text") {
-            const b = getElementBounds(el);
             const isEditing = editingTextId === el.id;
             const isCode = el.fontFamily === "'JetBrains Mono', monospace";
             if (isCode) {
@@ -1044,6 +1404,7 @@ export default function WhiteboardCanvas({
                   width={Math.max(b.width, 120)}
                   height={Math.max(b.height, (el.fontSize || 22) * 1.5)}
                   opacity={opacity}
+                  transform={transform}
                   style={{ display: isEditing ? "none" : "block", pointerEvents: "none" }}
                 >
                   <div xmlns="http://www.w3.org/1999/xhtml" className="wb-code-block">
@@ -1056,7 +1417,7 @@ export default function WhiteboardCanvas({
               );
             }
             return (
-              <g key={el.id} opacity={opacity} onDoubleClick={() => setEditingTextId(el.id)}>
+              <g key={el.id} opacity={opacity} transform={transform} onDoubleClick={() => setEditingTextId(el.id)}>
                 <text
                   x={el.textAlign === "center" ? b.x + b.width / 2 : el.textAlign === "right" ? b.x + b.width : b.x}
                   y={b.y + (el.fontSize || 22)}
@@ -1084,9 +1445,8 @@ export default function WhiteboardCanvas({
           }
 
           if (el.type === "image") {
-            const b = getElementBounds(el);
             return (
-              <g key={el.id} opacity={opacity}>
+              <g key={el.id} opacity={opacity} transform={transform}>
                 <image
                   href={el.src}
                   x={b.x}
@@ -1101,8 +1461,15 @@ export default function WhiteboardCanvas({
           }
 
           const paths = getElementPaths(el);
+          const hasLabel = el.type !== "text" && el.text && editingTextId !== el.id;
+          const pos = hasLabel ? getLabelPosition(el) : null;
+          const labelLines = hasLabel ? el.text.split("\n") : [];
+          const fontSize = getNumericFontSize(el.fontSize);
+          const fontFamily = el.fontFamily || "'Caveat', cursive";
+          const isArrow = el.type === "arrow" || el.type === "line";
+
           return (
-            <g key={el.id} opacity={opacity}>
+            <g key={el.id} opacity={opacity} transform={transform} onDoubleClick={() => setEditingTextId(el.id)}>
               {paths.map((p, pIdx) => (
                 <path
                   key={pIdx}
@@ -1110,10 +1477,48 @@ export default function WhiteboardCanvas({
                   stroke={p.stroke || "none"}
                   strokeWidth={p.strokeWidth || 1}
                   fill={p.fill || "none"}
+                  strokeDasharray={p.strokeDasharray}
                   strokeLinecap="round"
                   strokeLinejoin="round"
                 />
               ))}
+              {hasLabel && pos && (
+                <g className="wb-shape-label" style={{ pointerEvents: "none" }}>
+                  {isArrow && (
+                    <rect
+                      x={pos.x - (Math.max(...labelLines.map((l) => l.length)) * fontSize * 0.3 + 6)}
+                      y={pos.y - (labelLines.length * fontSize * 0.6 + 4)}
+                      width={Math.max(...labelLines.map((l) => l.length)) * fontSize * 0.6 + 12}
+                      height={labelLines.length * fontSize * 1.2 + 8}
+                      fill={theme === "dark" ? "#121212" : "#ffffff"}
+                      rx={4}
+                      opacity={0.92}
+                    />
+                  )}
+                  <text
+                    x={pos.x}
+                    y={pos.y}
+                    fontFamily={fontFamily}
+                    fontSize={`${fontSize}px`}
+                    fill={el.strokeColor || "#1e1e1e"}
+                    textAnchor="middle"
+                    dominantBaseline="central"
+                    fontWeight={el.fontWeight || "normal"}
+                    fontStyle={el.fontStyle || "normal"}
+                    style={{ userSelect: "none" }}
+                  >
+                    {labelLines.map((line, idx) => (
+                      <tspan
+                        key={idx}
+                        x={pos.x}
+                        dy={idx === 0 ? `-${(labelLines.length - 1) * fontSize * 0.6}px` : `${fontSize * 1.2}px`}
+                      >
+                        {line}
+                      </tspan>
+                    ))}
+                  </text>
+                </g>
+              )}
             </g>
           );
         })}
@@ -1128,6 +1533,7 @@ export default function WhiteboardCanvas({
                 stroke={p.stroke || "none"}
                 strokeWidth={p.strokeWidth || 1}
                 fill={p.fill || "none"}
+                strokeDasharray={p.strokeDasharray}
                 strokeLinecap="round"
                 strokeLinejoin="round"
               />
@@ -1136,8 +1542,17 @@ export default function WhiteboardCanvas({
         )}
 
         {/* Selection Bounding Box & Transform Handles (Styled in Excalidraw purple) */}
-        {selectionBounds && selectedElements.length > 0 && action !== "drawing" && !selectedElbowArrow && (
-          <g className="wb-selection-overlay">
+        {selectionBounds && selectedElements.length > 0 && action !== "drawing" && !selectedElbowArrow && !editingTextId && (
+          <g
+            className="wb-selection-overlay"
+            transform={(() => {
+              const rot = selectedElements.length === 1 ? (selectedElements[0].angle || 0) : 0;
+              const deg = (rot * 180) / Math.PI;
+              const cx = selectionBounds.minX + selectionBounds.width / 2;
+              const cy = selectionBounds.minY + selectionBounds.height / 2;
+              return deg ? `rotate(${deg} ${cx} ${cy})` : undefined;
+            })()}
+          >
             <rect
               x={selectionBounds.minX - 4 / zoom}
               y={selectionBounds.minY - 4 / zoom}
@@ -1183,6 +1598,68 @@ export default function WhiteboardCanvas({
                 style={{ cursor: h.cursor }}
               />
             ))}
+          </g>
+        )}
+
+        {/* Handles for Curved / Straight Arrows & Lines */}
+        {selectedSingleArrowOrLine && arrowHandles && action !== "drawing" && (
+          <g className="wb-arrow-handles">
+            {selectedSingleArrowOrLine.arrowType === "curved" && (
+              (() => {
+                const { cx, cy } = getCurvedArrowControlPoint(selectedSingleArrowOrLine);
+                const x1 = selectedSingleArrowOrLine.x;
+                const y1 = selectedSingleArrowOrLine.y;
+                const x2 = selectedSingleArrowOrLine.x2 ?? (x1 + (selectedSingleArrowOrLine.width || 0));
+                const y2 = selectedSingleArrowOrLine.y2 ?? (y1 + (selectedSingleArrowOrLine.height || 0));
+                const midX = (x1 + x2) / 2;
+                const midY = (y1 + y2) / 2;
+                return (
+                  <line
+                    x1={midX}
+                    y1={midY}
+                    x2={cx}
+                    y2={cy}
+                    stroke="#a78bfa"
+                    strokeWidth={1 / zoom}
+                    strokeDasharray={`${3 / zoom}, ${3 / zoom}`}
+                  />
+                );
+              })()
+            )}
+            {arrowHandles.map((handle) => (
+              <circle
+                key={handle.id}
+                cx={handle.x}
+                cy={handle.y}
+                r={handle.kind === "curve" ? 6 / zoom : 5 / zoom}
+                fill={handle.kind === "curve" ? "#6965db" : "#ffffff"}
+                stroke="#6965db"
+                strokeWidth={1.5 / zoom}
+                style={{ cursor: "grab" }}
+              >
+                {handle.kind === "curve" && <title>Drag to adjust curve radius / bend</title>}
+              </circle>
+            ))}
+          </g>
+        )}
+
+        {/* Connection Anchor Snap Indicator */}
+        {bindingSnapIndicator && (
+          <g className="wb-binding-indicator">
+            <circle
+              cx={bindingSnapIndicator.x}
+              cy={bindingSnapIndicator.y}
+              r={10 / zoom}
+              fill="rgba(59, 130, 246, 0.2)"
+              stroke="#3b82f6"
+              strokeWidth={2 / zoom}
+            />
+            <circle
+              cx={bindingSnapIndicator.x}
+              cy={bindingSnapIndicator.y}
+              r={3.5 / zoom}
+              fill="#3b82f6"
+            />
           </g>
         )}
 
@@ -1263,8 +1740,18 @@ export default function WhiteboardCanvas({
         const el = elements.find((e) => e.id === editingTextId);
         if (!el) return null;
         const b = getElementBounds(el);
-        const screenX = pan.x + b.x * zoom;
-        const screenY = pan.y + b.y * zoom;
+        const isShapeOrArrow = el.type !== "text";
+        const pos = isShapeOrArrow ? getLabelPosition(el) : { x: b.x, y: b.y };
+
+        const editorWidth = isShapeOrArrow
+          ? Math.max(140, (b.width || 140) * 0.8 * zoom)
+          : Math.max(200, b.width * zoom);
+        const screenX = isShapeOrArrow
+          ? pan.x + pos.x * zoom - editorWidth / 2
+          : pan.x + b.x * zoom;
+        const screenY = isShapeOrArrow
+          ? pan.y + pos.y * zoom - 18 * zoom
+          : pan.y + b.y * zoom;
 
         return (
           <textarea
@@ -1273,33 +1760,38 @@ export default function WhiteboardCanvas({
             style={{
               left: screenX,
               top: screenY,
-              width: Math.max(200, b.width * zoom),
-              minHeight: (el.fontSize || 22) * zoom * 1.5,
-              fontSize: `${(el.fontSize || 22) * zoom}px`,
+              width: editorWidth,
+              minHeight: getNumericFontSize(el.fontSize) * zoom * 1.5,
+              fontSize: `${getNumericFontSize(el.fontSize) * zoom}px`,
               fontFamily: el.fontFamily || "'Caveat', cursive",
               color: el.strokeColor || "#1e1e1e",
-              textAlign: el.textAlign || "left",
+              textAlign: isShapeOrArrow ? "center" : (el.textAlign || "left"),
             }}
             value={el.text || ""}
             placeholder="Type here…"
             onChange={(changeEvt) => {
               const text = changeEvt.target.value;
-              const lines = text.split("\n");
-              const maxLineLen = Math.max(...lines.map((l) => l.length), 5);
-              const charWidth = (el.fontSize || 22) * 0.6;
-              const nextWidth = Math.max(120, maxLineLen * charWidth);
-              const nextHeight = Math.max(
-                (el.fontSize || 22) * 1.5,
-                lines.length * (el.fontSize || 22) * 1.4
-              );
-              const next = elements.map((item) =>
-                item.id === el.id ? { ...item, text, width: nextWidth, height: nextHeight } : item
-              );
-              setElements(next);
+              if (!isShapeOrArrow) {
+                const lines = text.split("\n");
+                const maxLineLen = Math.max(...lines.map((l) => l.length), 5);
+                const charWidth = (el.fontSize || 22) * 0.6;
+                const nextWidth = Math.max(120, maxLineLen * charWidth);
+                const nextHeight = Math.max(
+                  (el.fontSize || 22) * 1.5,
+                  lines.length * (el.fontSize || 22) * 1.4
+                );
+                setElements(elements.map((item) =>
+                  item.id === el.id ? { ...item, text, width: nextWidth, height: nextHeight } : item
+                ));
+              } else {
+                setElements(elements.map((item) =>
+                  item.id === el.id ? { ...item, text } : item
+                ));
+              }
             }}
             onBlur={() => {
               const currentEl = elements.find((item) => item.id === el.id);
-              if (!currentEl || !currentEl.text || currentEl.text.trim() === "") {
+              if (currentEl?.type === "text" && (!currentEl.text || currentEl.text.trim() === "")) {
                 const filtered = elements.filter((item) => item.id !== el.id);
                 updateElements(filtered);
                 setSelectedIds([]);
@@ -1313,11 +1805,10 @@ export default function WhiteboardCanvas({
             onClick={(cEvt) => cEvt.stopPropagation()}
             onWheel={(wEvt) => wEvt.stopPropagation()}
             onKeyDown={(kEvt) => {
-              // Stop key events from triggering canvas tool shortcuts
               kEvt.stopPropagation();
               if (kEvt.key === "Escape") {
                 const currentEl = elements.find((item) => item.id === el.id);
-                if (!currentEl || !currentEl.text || currentEl.text.trim() === "") {
+                if (currentEl?.type === "text" && (!currentEl.text || currentEl.text.trim() === "")) {
                   const filtered = elements.filter((item) => item.id !== el.id);
                   updateElements(filtered);
                   setSelectedIds([]);
@@ -1343,6 +1834,14 @@ export default function WhiteboardCanvas({
       {/* Shortcuts Modal */}
       {showShortcutsModal && (
         <ShortcutsModal onClose={() => setShowShortcutsModal(false)} />
+      )}
+
+      {/* Excalidraw Shape Library Modal */}
+      {showLibraryModal && (
+        <LibraryModal
+          onInsertElements={handleInsertLibraryElements}
+          onClose={() => setShowLibraryModal(false)}
+        />
       )}
     </div>
   );
